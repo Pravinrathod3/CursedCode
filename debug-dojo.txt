@@ -1,0 +1,241 @@
+Debug Dojo
+A coding coach that helps you find the bug without handing you the answer. AI-powered
+education and learning technology · live demo + judge test pack · 24 hours.
+The story
+Rohan is in his first semester. His function should return the total of the last k marks in a
+list. It works on all three of his examples. The practice site says: Wrong Answer on test 5.
+Test 5 is hidden. Yesterday the site showed him IndexError: list index out of range, which
+told him where his program died but not why. So he does what everyone in his hostel does:
+pastes the question into a chatbot, copies the answer and submits. Accepted.
+Next week the exam has the same kind of loop, and there is no chatbot in the exam hall.
+Rohan never needed the answer. He needed someone to point him to the right place to
+look, then a little more if he was still stuck, and next week a new problem that makes him
+face the same mistake until he stops making it.
+Problem overview
+Beginners learn programming by writing code and reading what goes wrong, but feedback
+is often hard to use. A traceback names an error without explaining it, and a program can
+run and still give the wrong answer. Tools that report only pass or fail don't show where to
+look; tools that give full answers too early remove the struggle that makes learning stick.
+And running learner code is risky: code from an unknown author must not read sensitive
+files, reach the network or consume unlimited resources.
+Build a practice environment that runs learner code safely, explains failures in plain
+language, gives hints that get more specific without giving the answer away, and learns
+which mistakes each learner keeps making.
+The challenge
+Build a practice environment for one programming language your team can support well.
+Every submission must do all of the following:
+1. Challenges. At least 10 challenges across at least 3 difficulty levels and at least 4
+concepts. Each has a description, starter code, concept tags, at least 3 visible tests
+and at least 5 hidden tests, including edge cases. Your set must include the four judge
+challenges below, exactly as specified.
+Page 1 of 6
+2. Restricted execution. Learner code never runs unrestricted. Full sandboxing is not
+required; a constrained local test runner is acceptable, and stronger isolation scores
+higher.
+3. Per-test outcomes. Report every test separately as exactly one of: passed, wrong
+output, runtime error or timeout. A run killed by a memory, output or disk limit counts
+as a runtime error and says which limit.
+4. Hidden tests stay hidden. Never reveal a hidden test's input, expected output, the
+program's output on it or its exception message. An explanation may name the kind of
+input involved ("a case where k is larger than the list"), never the values.
+5. Plain-language explanations. When a submission fails, explain the failure in plain
+language to help the learner find the problem.
+6. Progressive hints. Offer a ladder of at least 3 hints per failure, each more specific than
+the last. No hint, including AI-generated ones, may reveal the complete solution, even
+when the learner asks for it.
+7. Recurring mistakes. Tag each failed submission with mistake categories. Your
+taxonomy must include these five, kept distinct, and may add more: off_by_one,
+unhandled_short_input (empty or too-short input), print_not_return,
+boundary_comparison (such as < for ≤) and mutates_input. A category is recurring
+once it appears in at least 2 different challenges. Show it to the learner, and choose or
+generate the next challenge to practise it, saying why.
+8. Skills by concept. Keep a mastery estimate per concept, updated from the learner's
+work. A pass without hints counts for more than a pass after hints.
+9. Judge interface. Expose POST /api/submit, taking {learner_id, challenge_id, code} and
+returning the outcomes and the explanation as JSON in the shape shown in the
+Example; POST /api/hint, taking {submission_id} and returning the next hint; and GET
+/api/learner/{learner_id}, returning the learner's recurring mistakes, mastery per
+concept, and the next challenge with the reason.
+The four judge challenges (translate the signatures into your language):
+Challenge Signature Returns Inputs
+last-k-total last_k_total(marks, k) The total of the last k
+marks, or of all marks if
+k is larger than the list
+marks: a list of integers,
+possibly empty; k: an
+integer, 0 or more
+count￾passes
+count_passes(marks) How many marks are 40
+or more
+marks: a list of integers,
+possibly empty
+first-n￾squares
+first_n_squares(n) The list [1, 4, 9, …, n²], or
+[] when n is 0
+n: an integer, 0 or more
+EdTech · Debug Dojo
+Page 2 of 6
+Data and tools
+Scoring
+The judges run hostile programs, outcome-label checks, hidden-test secrecy checks and a
+scripted learner through yourAPI before your slot. During the 15-minute slot they test
+hints and explanations and use your interface.
+Challenge Signature Returns Inputs
+middle￾three
+middle_three(items) The middle three items
+as a list, or the whole list
+if it has fewer than 3
+items
+items: a list of odd
+length, or with fewer
+than 3 items
+Resource What it gives you Licence
+Exercism Python track Exercises with tests, concepts, prerequisites and
+difficulty
+MIT
+MBPP About 1,000 entry-level Python problems with
+tests
+CC BY 4.0
+HumanEval 164 Python problems with unit tests MIT
+Judge0 Self-hosted code execution, 90+ languages GPL-3.0
+Piston Self-hosted code execution engine (its public API
+now needs a key, so self-host it)
+MIT
+nsjail Linux process isolation Apache-2.0
+Pyodide Python in the browser via WebAssembly MPL-2.0
+Ollama Run open-weight language models locally; any
+model API is fine too
+MIT
+Test What the judges do Full marks when
+Sandbox red￾team
+Submit about 15 hostile programs
+(network, files, secrets, infinite
+loops, memory, processes, output
+and disk floods, tricks against the
+test harness)
+Every one is contained and never
+reported as passed; the server
+stays up; no secret or test file is
+exposed; the next normal
+submission runs correctly
+EdTech · Debug Dojo
+Page 3 of 6
+Example
+Rohan submits this for last-k-total:
+def last_k_total(marks, k):
+total = 0
+for i in range(len(marks) - k, len(marks)):
+total += marks[i]
+return total
+Your /api/submit returns something like this:
+{
+"submission_id": "s_0142",
+"learner_id": "rohan",
+"challenge_id": "last-k-total",
+"visible": [
+{"test": 1, "call": "last_k_total([10, 20, 30, 40], 2)", "expected":
+"70", "got": "70", "outcome": "passed"},
+Test What the judges do Full marks when
+Outcome labels Submit 4 programs per challenge
+for 3 challenges: pass, wrong
+output, error, run forever
+All 12 labels are exactly right
+Hidden-test
+secrecy
+Submit programs that print or
+raise their inputs, request hints,
+inspect browser traffic
+No hidden input, expected
+output, program output or
+exception message reaches the
+learner
+Hint leakage For 3 failing submissions, request
+every hint, including after asking
+for the answer; merge all code
+from the hints into the learner's
+code
+The merged code still fails at
+least one hidden test
+Recurring
+mistakes
+A scripted learner submits about
+11 programs over the 4 judge
+challenges
+Both planted recurring mistakes
+are named, one-off slips are not,
+and the next challenge targets a
+recurring mistake with a reason
+Explanations and
+hints
+Two judges rate 5 failures, blind to
+team, 0–2 each on correct,
+specific and not giving the answer
+away
+Points scale with the average
+rating
+EdTech · Debug Dojo
+Page 4 of 6
+{"test": 2, "call": "last_k_total([5, 5, 5], 3)", "expected": "15",
+"got": "15", "outcome": "passed"},
+{"test": 3, "call": "last_k_total([7], 1)", "expected": "7", "got": "7",
+"outcome": "passed"}
+],
+"hidden": [
+{"test": 1, "outcome": "passed"},
+{"test": 2, "outcome": "passed"},
+{"test": 3, "outcome": "runtime_error"},
+{"test": 4, "outcome": "wrong_output"},
+{"test": 5, "outcome": "wrong_output"},
+{"test": 6, "outcome": "passed"}
+],
+"mistake_tags": ["unhandled_short_input"],
+"explanation": "All 3 visible tests pass, but 3 of the 6 hidden tests fail:
+one crashes and two give the wrong total. All three are cases where k is
+larger than the number of marks. Your loop starts at len(marks) - k, which is
+negative then."
+}
+A good hint ladder for it:
+1. Your three examples never ask for more marks than the list holds. What should
+last_k_total return when k is bigger than the list?
+2. Work out last_k_total([2, 5], 3) by hand. Which index does your loop start at, and what
+does marks[-1] mean in Python?
+3. In Python a negative index counts back from the end, so some marks get added twice.
+Your start index must never go below 0.
+4. Python has a built-in that returns the larger of two numbers. Use it to work out the
+start index once, before the loop.
+No hint contains code, and the learner still writes the fix.
+Rules
+Language and stack: one programming language for learners; any stack for the
+platform.
+Challenge content: write your own, or adapt openly licensed sources with attribution.
+Write your own hidden tests.
+AI: any model orAPI may write explanations and hints. Log every prompt and response;
+judges may ask to see them.
+Learner data: pseudonymous accounts only. No real student data.
+EdTech · Debug Dojo
+Page 5 of 6
+Judge access: yourAPI endpoints must be reachable by the judges from the start of
+judging.
+Deliverables and judging
+Hand in by the freeze:
+1. A code repository with a README and one command that starts everything.
+2. A live URL, or a laptop the judges can use, with the API endpoints.
+3. Your mistake taxonomy and how each category is detected, on one page.
+4. A 5-minute demo, then a viva.
+Component Points How it is judged
+Sandbox red-team 15 Share of hostile programs contained
+Outcome labels and hidden-test
+secrecy
+15 Exact labels; no leak of hidden tests
+Hint leakage 10 Merged hint code never passes all hidden
+tests
+Recurring mistakes and skills 10 Scripted learner result; mastery moves with
+the evidence
+Explanations and hints 15 Blind judge ratings
+Learning experience 15 Would a struggling beginner use it, and learn
+rather than copy?
+Technical depth and viva 20 Explains the isolation, the test harness, the
+hint guardrails and the learner model
+without notes
+EdTech · Debug Dojo
+Page 6 of 6
