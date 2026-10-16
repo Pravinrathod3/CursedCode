@@ -7,7 +7,7 @@ import json
 import os
 import shutil
 import sys
-import http
+import httpx
 from app.core.config import get_settings
 from app.core.logging import get_logger
 
@@ -20,7 +20,7 @@ def is_go_judge_available() -> bool:
     if not settings.go_judge_enabled:
         return False
     try:
-        with http.Client(timeout=0.6) as client:
+        with httpx.Client(timeout=0.6) as client:
             resp = client.get(f"{settings.go_judge_url}/version")
             return resp.status_code == 200
     except Exception:

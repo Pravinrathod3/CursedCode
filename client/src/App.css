@@ -2036,3 +2036,590 @@
     align-items: flex-start;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Schematic Wireframe Layout Styles (CursedCode Blueprint System)
+   -------------------------------------------------------------------------- */
+.schematic-section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(224, 36, 58, 0.25);
+  padding-bottom: 8px;
+  margin: 20px 0 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--color-accent-crimson);
+  text-transform: uppercase;
+}
+
+.schematic-section-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schematic-section-bar__tag {
+  color: var(--color-muted);
+}
+
+.schematic-dual-pane {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 24px;
+}
+
+.schematic-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.schematic-card {
+  position: relative;
+  background: rgba(14, 5, 8, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(224, 36, 58, 0.22);
+  border-radius: var(--border-radius-sm);
+  padding: 18px 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 46, 68, 0.04);
+}
+
+.schematic-card--compact {
+  padding: 14px 16px;
+}
+
+.schematic-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(224, 36, 58, 0.16);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #FFFFFF;
+}
+
+.schematic-card-header__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: #FFFFFF;
+}
+
+.schematic-card-header__tag {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-accent-crimson);
+  letter-spacing: 0.08em;
+}
+
+.schematic-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+
+.schematic-text code {
+  background: rgba(224, 36, 58, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--color-accent-crimson);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.schematic-theory-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.schematic-theory-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.schematic-example-box {
+  background: rgba(10, 3, 6, 0.6);
+  border: 1px solid rgba(224, 36, 58, 0.18);
+  border-left: 3px solid var(--color-accent-crimson);
+  border-radius: 4px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.schematic-example-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.schematic-example-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+  width: 65px;
+  flex-shrink: 0;
+}
+
+.schematic-bot-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.schematic-bot-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: rgba(224, 36, 58, 0.12);
+  border: 1px solid rgba(224, 36, 58, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-accent-crimson);
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.schematic-bot-avatar span {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.schematic-bot-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schematic-editor-container {
+  display: flex;
+  flex-direction: column;
+  background: rgba(12, 4, 7, 0.85);
+  border: 1px solid rgba(224, 36, 58, 0.25);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.schematic-editor-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(20, 6, 12, 0.95);
+  border-bottom: 1px solid rgba(224, 36, 58, 0.18);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.schematic-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #FFFFFF;
+}
+
+.schematic-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.schematic-run-btn {
+  height: 32px;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.schematic-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: rgba(8, 2, 4, 0.95);
+  border-top: 1px solid rgba(224, 36, 58, 0.18);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.schematic-inspector-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(224, 36, 58, 0.15);
+  padding-bottom: 8px;
+}
+
+.schematic-inspector-tab {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(224, 36, 58, 0.25);
+  background: rgba(18, 6, 10, 0.6);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schematic-inspector-tab:hover {
+  background: rgba(224, 36, 58, 0.15);
+  color: #fff;
+}
+
+.schematic-inspector-tab--active {
+  background: rgba(224, 36, 58, 0.25);
+  border-color: var(--color-accent-crimson);
+  color: #FFFFFF;
+  box-shadow: 0 0 10px rgba(224, 36, 58, 0.35);
+}
+
+.schematic-inspector-params {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.schematic-param-box {
+  background: rgba(10, 3, 6, 0.6);
+  border: 1px solid rgba(224, 36, 58, 0.15);
+  border-radius: 4px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.schematic-matrix-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 18px;
+  background: rgba(16, 5, 10, 0.85);
+  border: 1px solid rgba(224, 36, 58, 0.22);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.schematic-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.schematic-progress-track {
+  width: 140px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.schematic-progress-fill {
+  height: 100%;
+  background: var(--color-accent-crimson);
+  transition: width 0.3s ease;
+}
+
+.schematic-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.schematic-matrix-cell {
+  background: rgba(14, 5, 8, 0.75);
+  border: 1px solid rgba(224, 36, 58, 0.2);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.schematic-matrix-cell:hover {
+  border-color: var(--color-accent-crimson);
+  background: rgba(224, 36, 58, 0.12);
+}
+
+.schematic-matrix-cell--passed {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.schematic-matrix-cell--failed {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.schematic-terminal {
+  background: #080204;
+  border: 1px solid rgba(224, 36, 58, 0.25);
+  border-radius: 6px;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  color: #B0B0B0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schematic-terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(224, 36, 58, 0.15);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--color-accent-crimson);
+}
+
+.schematic-terminal-line {
+  margin: 0;
+  word-break: break-all;
+}
+
+.schematic-terminal-line--success {
+  color: #22c55e;
+}
+
+.schematic-terminal-line--error {
+  color: #ef4444;
+}
+
+.schematic-terminal-line--warn {
+  color: #eab308;
+}
+
+.schematic-blueprint-footer {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--color-muted);
+  margin-top: 24px;
+  opacity: 0.6;
+}
+
+@media (max-width: 1024px) {
+  .schematic-dual-pane {
+    grid-template-columns: 1fr;
+  }
+  .schematic-matrix-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .schematic-matrix-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   LeetCode-Style Console & Split View
+   -------------------------------------------------------------------------- */
+.leetcode-layout {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+  .leetcode-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.leetcode-left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.leetcode-right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.leetcode-console {
+  background: rgba(14, 5, 8, 0.85);
+  border: 1px solid rgba(224, 36, 58, 0.22);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.leetcode-console-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(20, 6, 12, 0.95);
+  border-bottom: 1px solid rgba(224, 36, 58, 0.18);
+  padding: 0 12px;
+}
+
+.leetcode-tabs-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.leetcode-console-tab {
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leetcode-console-tab:hover {
+  color: #fff;
+}
+
+.leetcode-console-tab--active {
+  color: #fff;
+  border-bottom-color: var(--color-accent-crimson);
+}
+
+.leetcode-console-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.leetcode-case-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.leetcode-case-pill {
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: rgba(22, 8, 14, 0.7);
+  border: 1px solid rgba(224, 36, 58, 0.2);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leetcode-case-pill:hover {
+  background: rgba(224, 36, 58, 0.15);
+  color: #fff;
+}
+
+.leetcode-case-pill--active {
+  background: rgba(224, 36, 58, 0.25);
+  border-color: var(--color-accent-crimson);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(224, 36, 58, 0.3);
+}
+
+.leetcode-result-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.leetcode-result-banner--passed {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #22c55e;
+}
+
+.leetcode-result-banner--failed {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+
+.leetcode-io-block {
+  background: rgba(8, 2, 4, 0.6);
+  border: 1px solid rgba(224, 36, 58, 0.15);
+  border-radius: 4px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leetcode-io-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.leetcode-io-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #E0E0E0;
+}
+
