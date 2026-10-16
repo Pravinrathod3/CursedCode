@@ -5,6 +5,7 @@ import ChallengeFilters from '../components/ChallengeFilters.jsx';
 import ChallengeCard from '../components/ChallengeCard.jsx';
 import SkeletonCard from '../components/SkeletonCard.jsx';
 import { CHALLENGES } from '../data/challenges.js';
+import { getChallenges } from '../services/api.js';
 
 export default function ChallengesPage({ onNavigate, learnerName }) {
   // Parse initial state from URL query parameters if available
@@ -23,11 +24,25 @@ export default function ChallengesPage({ onNavigate, learnerName }) {
   const [selectedConcept, setSelectedConcept] = useState(initialParams.concept);
   const [selectedStatus, setSelectedStatus] = useState(initialParams.status);
   const [isLoading, setIsLoading] = useState(true);
+  const [challenges, setChallenges] = useState(CHALLENGES);
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 150);
-    return () => clearTimeout(timer);
-  }, []);
+    let active = true;
+    getChallenges(learnerName).then((data) => {
+      if (active) {
+        setChallenges(data);
+        setIsLive(true);
+        setIsLoading(false);
+      }
+    }).catch(() => {
+      if (active) {
+        setIsLoading(false);
+      }
+    });
+
+    return () => { active = false; };
+  }, [learnerName]);
 
   // Sync state to URL query params
   useEffect(() => {
@@ -61,13 +76,13 @@ export default function ChallengesPage({ onNavigate, learnerName }) {
   const filteredChallenges = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return CHALLENGES.filter((item) => {
+    return challenges.filter((item) => {
       // Search matching title, description, or concept tags
       const matchesSearch =
         !query ||
         item.title.toLowerCase().includes(query) ||
-        item.description.toLowerCase().includes(query) ||
-        item.tags.some((tag) => tag.toLowerCase().includes(query));
+        (item.description && item.description.toLowerCase().includes(query)) ||
+        (item.tags && item.tags.some((tag) => tag.toLowerCase().includes(query)));
 
       // Grade matching
       const matchesGrade =
@@ -75,7 +90,7 @@ export default function ChallengesPage({ onNavigate, learnerName }) {
 
       // Concept matching
       const matchesConcept =
-        selectedConcept === 'All concepts' || item.tags.includes(selectedConcept);
+        selectedConcept === 'All concepts' || (item.tags && item.tags.includes(selectedConcept));
 
       // Status matching
       const matchesStatus =
@@ -83,7 +98,7 @@ export default function ChallengesPage({ onNavigate, learnerName }) {
 
       return matchesSearch && matchesGrade && matchesConcept && matchesStatus;
     });
-  }, [searchQuery, selectedGrade, selectedConcept, selectedStatus]);
+  }, [challenges, searchQuery, selectedGrade, selectedConcept, selectedStatus]);
 
   // Navigate to challenge workspace
   const handleSelectChallenge = (id) => {
@@ -131,7 +146,7 @@ export default function ChallengesPage({ onNavigate, learnerName }) {
           <div className="status-bar__count">
             <strong>{filteredChallenges.length}</strong> {filteredChallenges.length === 1 ? 'challenge' : 'challenges'} available
             {hasActiveFilters && (
-              <span className="status-bar__filtered-note"> (filtered from {CHALLENGES.length})</span>
+              <span className="status-bar__filtered-note"> (filtered from {challenges.length})</span>
             )}
           </div>
 
@@ -176,7 +191,9 @@ export default function ChallengesPage({ onNavigate, learnerName }) {
                 {selectedStatus} ✕
               </button>
             )}
-            <span className="status-bar__demo-badge">Local practice data</span>
+            <span className="status-bar__demo-badge">
+              {isLive ? 'Live Dojo Connected' : 'Local practice data'}
+            </span>
           </div>
         </div>
 
@@ -198,20 +215,18 @@ export default function ChallengesPage({ onNavigate, learnerName }) {
             ))}
           </div>
         ) : (
-          /* Empty State per doc 04 */
-          <div className="empty-state" role="status">
-            <div className="empty-state__icon" aria-hidden="true">⌕</div>
-            <h2 className="empty-state__title">No Challenges Match These Filters</h2>
-            <p className="empty-state__desc">
-              Zero active curses match your search keywords and filter combination. Relax your grade or concept parameters to view archived challenges.
+          <div className="empty-state">
+            <div className="empty-state__icon" aria-hidden="true">∅</div>
+            <h2 className="empty-state__title">No Challenges Match Filters</h2>
+            <p className="empty-state__lead">
+              Try adjusting your query or resetting filters to review the full mission roster.
             </p>
             <button
               type="button"
-              className="primary-energy-btn empty-state__btn"
+              className="primary-energy-btn"
               onClick={handleClearFilters}
             >
-              <span>Reset All Filters</span>
-              <span className="btn-arrow" aria-hidden="true">↺</span>
+              Reset all filters
             </button>
           </div>
         )}

@@ -1,20 +1,133 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import GradeBadge from '../components/GradeBadge.jsx';
 import { CHALLENGES } from '../data/challenges.js';
+import { getChallenge, submitCode, getHint } from '../services/api.js';
+
+function formatOutcome(outcome) {
+  switch (outcome) {
+    case 'passed':
+      return 'Passed';
+    case 'wrong_output':
+      return 'Wrong output';
+    case 'runtime_error':
+      return 'Runtime error';
+    case 'timeout':
+      return 'Timeout';
+    default:
+      return 'Pending';
+  }
+}
+
+function getOutcomeIcon(outcome) {
+  switch (outcome) {
+    case 'passed':
+      return '✓';
+    case 'wrong_output':
+      return '✕';
+    case 'runtime_error':
+      return '⚠';
+    case 'timeout':
+      return '⏱';
+    default:
+      return '●';
+  }
+}
 
 export default function WorkspacePage({ challengeId, onNavigate, learnerName }) {
-  const challenge = CHALLENGES.find((c) => c.id === challengeId) || CHALLENGES[0];
-  const [code, setCode] = useState(challenge.starterCode);
+  const initialChallenge = CHALLENGES.find((c) => c.id === challengeId) || CHALLENGES[0];
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [code, setCode] = useState(initialChallenge.starterCode || '');
   const [sandboxStatus, setSandboxStatus] = useState('Sandbox ready');
   const [activeTab, setActiveTab] = useState('tests');
   const [hasRun, setHasRun] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const handleRun = () => {
-    setSandboxStatus('Run finished');
-    setHasRun(true);
+  // Execution state
+  const [submissionId, setSubmissionId] = useState(null);
+  const [visibleResults, setVisibleResults] = useState([]);
+  const [hiddenResults, setHiddenResults] = useState([]);
+
+  // Hints state
+  const [revealedHints, setRevealedHints] = useState([]);
+  const [isFetchingHint, setIsFetchingHint] = useState(false);
+  const [remainingHints, setRemainingHints] = useState(4);
+
+  // Fetch challenge details from backend
+  useEffect(() => {
+    let active = true;
+    getChallenge(challengeId).then((data) => {
+      if (active && data) {
+        setChallenge(data);
+        const starter = data.starterCode || data.starter_code || '';
+        setCode(starter);
+        setHasRun(false);
+        setSubmissionId(null);
+        setVisibleResults([]);
+        setHiddenResults([]);
+        setRevealedHints([]);
+        setRemainingHints(4);
+        setSandboxStatus('Sandbox ready');
+      }
+    });
+    return () => { active = false; };
+  }, [challengeId]);
+
+  const handleRun = async () => {
+    if (isRunning) return;
+    setIsRunning(true);
+    setSandboxStatus('Running your code in the sandbox');
+
+    try {
+      const res = await submitCode(learnerName, challenge.id, code);
+      setSubmissionId(res.submission_id);
+      setVisibleResults(res.visible || []);
+      setHiddenResults(res.hidden || []);
+      setHasRun(true);
+
+      if (res.limit) {
+        setSandboxStatus(`Stopped: ${res.limit} limit reached`);
+      } else {
+        setSandboxStatus('Run finished');
+      }
+    } catch (err) {
+      console.error('Code execution failed:', err);
+      setSandboxStatus('Something went wrong running your code. Please try again.');
+    } finally {
+      setIsRunning(false);
+    }
   };
+
+  const handleGetHint = async () => {
+    if (!submissionId || isFetchingHint) return;
+    setIsFetchingHint(true);
+
+    try {
+      const res = await getHint(submissionId);
+      setRevealedHints((prev) => {
+        // Avoid duplicate hints
+        if (prev.some((h) => h.index === res.hint_index)) return prev;
+        return [...prev, { index: res.hint_index, text: res.hint }];
+      });
+      if (res.remaining !== undefined) {
+        setRemainingHints(res.remaining);
+      } else {
+        setRemainingHints((prev) => Math.max(0, prev - 1));
+      }
+    } catch {
+      // Ignore or show neutral message
+    } finally {
+      setIsFetchingHint(false);
+    }
+  };
+
+  // Compute test tallies
+  const visibleTotal = challenge.visibleTests ? challenge.visibleTests.length : 0;
+  const visiblePassed = visibleResults.filter((r) => r.outcome === 'passed').length;
+  const hiddenTotal = challenge.hiddenTestCount || (hiddenResults.length ? hiddenResults.length : 5);
+  const hiddenPassed = hiddenResults.filter((r) => r.outcome === 'passed').length;
+  const allPassed = hasRun && (visiblePassed === visibleTotal && hiddenPassed === hiddenTotal);
 
   return (
     <div className="page-shell">
@@ -49,7 +162,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
             </div>
 
             <div className="workspace-tags" aria-label="Concepts">
-              {challenge.tags.map((tag) => (
+              {(challenge.tags || []).map((tag) => (
                 <span key={tag} className="concept-ribbon">
                   <span className="ribbon-hash" aria-hidden="true">#</span>
                   {tag}
@@ -106,9 +219,10 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                   type="button"
                   className="primary-energy-btn run-btn"
                   onClick={handleRun}
+                  disabled={isRunning}
                 >
                   <span aria-hidden="true">▶</span>
-                  <span>Run Execution</span>
+                  <span>{isRunning ? 'Running…' : 'Run Execution'}</span>
                 </button>
                 <div className="sandbox-status-chip">
                   <span className="chip-dot" aria-hidden="true">●</span>
@@ -149,8 +263,8 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                 {/* Summary Line above test lists per rules.md 4.3 */}
                 <div className="test-summary-line" role="status">
                   {hasRun ? (
-                    <span className="test-summary-line--success">
-                      ✓ {challenge.visibleTests.length} of {challenge.visibleTests.length} visible tests passed · {challenge.hiddenTestCount} of {challenge.hiddenTestCount} hidden tests passed
+                    <span className={allPassed ? 'test-summary-line--success' : ''}>
+                      {allPassed ? '✓ ' : ''}{visiblePassed} of {visibleTotal} visible tests passed · {hiddenPassed} of {hiddenTotal} hidden tests passed
                     </span>
                   ) : (
                     <span>Click Run Execution to evaluate visible and hidden tests.</span>
@@ -164,31 +278,40 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                     <h2 className="panel-title">Visible Tests</h2>
                   </div>
                   <div className="tests-list">
-                    {challenge.visibleTests.map((t) => (
-                      <div 
-                        key={t.test} 
-                        className={`test-row ${hasRun ? 'test-row--passed' : ''}`}
-                      >
-                        <div className="test-row__header">
-                          <span className="test-row__num">Test #{t.test}</span>
-                          <span className={`outcome-pill ${hasRun ? 'outcome-pill--passed' : 'outcome-pill--idle'}`}>
-                            <span className="outcome-pill__icon" aria-hidden="true">
-                              {hasRun ? '✓' : '●'}
-                            </span>{' '}
-                            {hasRun ? 'Passed' : 'Pending'}
-                          </span>
+                    {(challenge.visibleTests || []).map((t, idx) => {
+                      const res = visibleResults.find((r) => r.test === (t.test || idx + 1)) || visibleResults[idx];
+                      const outcome = res ? res.outcome : (hasRun ? 'wrong_output' : null);
+                      const isPassed = outcome === 'passed';
+                      const gotVal = res && res.got !== undefined && res.got !== null
+                        ? res.got
+                        : (isPassed ? t.expected : '');
+
+                      return (
+                        <div 
+                          key={t.test || idx} 
+                          className={`test-row ${hasRun && isPassed ? 'test-row--passed' : ''}`}
+                        >
+                          <div className="test-row__header">
+                            <span className="test-row__num">Test #{t.test || idx + 1}</span>
+                            <span className={`outcome-pill ${outcome ? `outcome-pill--${outcome}` : 'outcome-pill--idle'}`}>
+                              <span className="outcome-pill__icon" aria-hidden="true">
+                                {getOutcomeIcon(outcome)}
+                              </span>{' '}
+                              {formatOutcome(outcome)}
+                            </span>
+                          </div>
+                          <div className="test-row__detail">
+                            <code>Call: {t.call}</code>
+                          </div>
+                          <div className="test-row__io">
+                            <span className="test-row__expected">Expected: <code>{t.expected}</code></span>
+                            {hasRun && gotVal !== '' && (
+                              <span className="test-row__got">Got: <code>{gotVal}</code></span>
+                            )}
+                          </div>
                         </div>
-                        <div className="test-row__detail">
-                          <code>Call: {t.call}</code>
-                        </div>
-                        <div className="test-row__io">
-                          <span className="test-row__expected">Expected: <code>{t.expected}</code></span>
-                          {hasRun && (
-                            <span className="test-row__got">Got: <code>{t.expected}</code></span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
 
@@ -203,22 +326,28 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                     <span>Hidden tests check cases you can't see. Their details stay private.</span>
                   </p>
                   <div className="hidden-tests-list">
-                    {Array.from({ length: challenge.hiddenTestCount }).map((_, i) => (
-                      <div key={i} className={`hidden-test-row ${hasRun ? 'hidden-test-row--passed' : ''}`}>
-                        <span className="hidden-test-name">
-                          Hidden Test #{challenge.visibleTests.length + i + 1}
-                        </span>
-                        <span className="hidden-test-lock" title="Details private" aria-hidden="true">
-                          🔒
-                        </span>
-                        <span className={`outcome-pill ${hasRun ? 'outcome-pill--passed' : 'outcome-pill--idle'}`}>
-                          <span className="outcome-pill__icon" aria-hidden="true">
-                            {hasRun ? '✓' : '●'}
-                          </span>{' '}
-                          {hasRun ? 'Passed' : 'Pending'}
-                        </span>
-                      </div>
-                    ))}
+                    {Array.from({ length: hiddenTotal }).map((_, i) => {
+                      const res = hiddenResults[i];
+                      const outcome = res ? res.outcome : (hasRun ? 'wrong_output' : null);
+                      const isPassed = outcome === 'passed';
+
+                      return (
+                        <div key={i} className={`hidden-test-row ${hasRun && isPassed ? 'hidden-test-row--passed' : ''}`}>
+                          <span className="hidden-test-name">
+                            Hidden Test #{(challenge.visibleTests ? challenge.visibleTests.length : 0) + i + 1}
+                          </span>
+                          <span className="hidden-test-lock" title="Details private" aria-hidden="true">
+                            🔒
+                          </span>
+                          <span className={`outcome-pill ${outcome ? `outcome-pill--${outcome}` : 'outcome-pill--idle'}`}>
+                            <span className="outcome-pill__icon" aria-hidden="true">
+                              {getOutcomeIcon(outcome)}
+                            </span>{' '}
+                            {formatOutcome(outcome)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
               </div>
@@ -233,20 +362,40 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                   <p className="panel-desc">
                     Hints become available after test execution. Diagnostic steps illuminate logic gaps without forfeiting solution mastery.
                   </p>
+                  
                   <div className="hint-ladder-preview">
-                    <div className="hint-step hint-step--locked">
-                      <span className="step-badge">Hint 1 of 4</span>
-                      <span className="step-lock">🔒 Execute code to unlock first hint</span>
-                    </div>
+                    {revealedHints.length === 0 ? (
+                      <div className="hint-step hint-step--locked">
+                        <span className="step-badge">Hint 1 of 4</span>
+                        <span className="step-lock">
+                          {hasRun ? '🔒 Ready to reveal diagnostic hint' : '🔒 Execute code to unlock first hint'}
+                        </span>
+                      </div>
+                    ) : (
+                      revealedHints.map((h) => (
+                        <div key={h.index} className="hint-step--revealed">
+                          <span className="step-badge">Hint {h.index} of 4</span>
+                          <span className="step-text">{h.text}</span>
+                        </div>
+                      ))
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    className="secondary-btn hint-btn"
-                    disabled
-                    title="Run code to unlock progressive hints"
-                  >
-                    Get a hint
-                  </button>
+
+                  {remainingHints > 0 && revealedHints.length < 4 ? (
+                    <button
+                      type="button"
+                      className="secondary-btn hint-btn"
+                      disabled={!hasRun || !submissionId || isFetchingHint}
+                      onClick={handleGetHint}
+                      title={hasRun ? 'Reveal next progressive hint' : 'Run code to unlock progressive hints'}
+                    >
+                      {isFetchingHint ? 'Fetching hint…' : 'Get a hint'}
+                    </button>
+                  ) : (
+                    <p className="panel-desc" style={{ marginTop: '12px', fontWeight: 600 }}>
+                      That's all the hints. You're closer than you think. Try another attempt.
+                    </p>
+                  )}
                 </section>
               </div>
             )}
