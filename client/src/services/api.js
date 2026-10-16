@@ -26,8 +26,11 @@ async function apiFetch(path, options = {}) {
 
 /**
  * Fetch all published challenges from backend, fallback to local dataset on error.
+ * Backend rows are minimal (id/slug/title/difficulty); enrich them with the static
+ * challenge catalog so the UI has description, tags, grade, status, tests, etc.
  */
 export async function getChallenges(learnerId) {
+  let backend = [];
   try {
     const url = learnerId
       ? `/api/challenges?learner_id=${encodeURIComponent(learnerId)}`
@@ -35,20 +38,47 @@ export async function getChallenges(learnerId) {
     const res = await apiFetch(url);
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     const data = await res.json();
-    return Array.isArray(data) && data.length > 0 ? data : CHALLENGES;
+    backend = Array.isArray(data) ? data : [];
   } catch {
-    return CHALLENGES;
+    backend = [];
   }
+
+  if (backend.length === 0) return CHALLENGES;
+
+  // Key static catalog by id for enrichment lookup.
+  const byId = new Map(CHALLENGES.map((c) => [c.id, c]));
+
+  return backend.map((b) => {
+    const staticChallenge = byId.get(b.slug) || byId.get(b.id);
+    if (!staticChallenge) return b;
+    return {
+      ...staticChallenge,
+      id: b.id || staticChallenge.id,
+      slug: b.slug,
+      title: b.title || staticChallenge.title,
+      difficulty: b.difficulty || staticChallenge.difficulty,
+    };
+  });
 }
 
 /**
  * Fetch a single challenge by ID/slug from backend, fallback to local dataset.
+ * Enriches the minimal backend row with the static catalog fields.
  */
 export async function getChallenge(challengeId) {
   try {
     const res = await apiFetch(`/api/challenges/${encodeURIComponent(challengeId)}`);
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-    return await res.json();
+    const b = await res.json();
+    const staticChallenge = CHALLENGES.find((c) => c.id === b.slug || c.id === b.id || c.id === challengeId);
+    if (!staticChallenge) return b;
+    return {
+      ...staticChallenge,
+      id: b.id || staticChallenge.id,
+      slug: b.slug,
+      title: b.title || staticChallenge.title,
+      difficulty: b.difficulty || staticChallenge.difficulty,
+    };
   } catch {
     return CHALLENGES.find((c) => c.id === challengeId) || CHALLENGES[0];
   }
