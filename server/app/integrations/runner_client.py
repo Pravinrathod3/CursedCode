@@ -1,173 +1,157 @@
 """
-Code execution runner client.
-Executes learner code against test cases in an isolated sandbox.
-Uses criyle/go-judge when available, with automatic fallback to isolated subprocess runner.
-Guarantees hidden test inputs, outputs, and runner internals stay strictly server-side.
-Classifies outcomes into exactly four states: passed, wrong_output, runtime_error, timeout.
+Code execution runner client via Judge0 REST API.
+Executes learner code in Judge0's isolated sandbox.
+If Judge0 is unreachable, fails closed with RunnerUnavailableError rather
+than executing learner code outside a sandbox.
+Guarantees hidden test inputs, outputs, and runner internals stay strictly
+server-side. Classifies outcomes into exactly four states: passed,
+wrong_output, runtime_error, timeout.
 """
-import ast
 import asyncio
-import json
-import subprocess
-import sys
-import time
+from urllib.parse import urlparse
+
+import httpx
+
 from app.core.config import get_settings
+from app.core.exceptions import RunnerUnavailableError
 from app.core.logging import get_logger
-from app.integrations.go_judge_client import is_go_judge_available, run_in_go_judge
 
 logger = get_logger(__name__)
 
+# Judge0 language ID for Python 3
+PYTHON_LANGUAGE_ID = 71
 
-def _normalize_val(val: any) -> any:
-    if isinstance(val, (int, float, bool, list, dict, set, tuple)):
-        return val
-    if isinstance(val, str):
-        val_str = val.strip()
-        try:
-            return ast.literal_eval(val_str)
-        except Exception:
-            return val_str
-    return val
+# Judge0 submission status IDs (RapidAPI hosted tier)
+STATUS_IN_QUEUE = 1
+STATUS_PROCESSING = 2
+STATUS_ACCEPTED = 3
+STATUS_WRONG_ANSWER = 4
+STATUS_TIME_LIMIT_EXCEEDED = 5
+STATUS_RUNTIME_ERROR = 11  # NZEC on this tier
+STATUS_COMPILATION_ERROR = 7
+STATUS_INTERNAL_ERROR = 8
+STATUS_EXEC_FORMAT_ERROR = 9
 
-
-def _execute_single_test_subprocess(
-    source_code: str, call_expr: str, timeout_seconds: float = 2.0
-) -> tuple[str, any, int, str | None]:
-    """
-    Fallback subprocess runner when go-judge is not running.
-    Returns (outcome, actual_output, duration_ms, limit_hit).
-    """
-    script = f"""
-import sys, json
-
-{source_code}
-
-try:
-    _res = {call_expr}
-    try:
-        _out = json.dumps(_res)
-    except Exception:
-        _out = json.dumps(repr(_res))
-    print("___OUT___" + _out)
-except Exception as _e:
-    print("___ERR___" + type(_e).__name__ + ": " + str(_e), file=sys.stderr)
-    sys.exit(1)
-"""
-    start_time = time.perf_counter()
-    try:
-        proc = subprocess.run(
-            [sys.executable, "-c", script],
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-        )
-        duration_ms = int((time.perf_counter() - start_time) * 1000)
-
-        if proc.returncode != 0:
-            return "runtime_error", None, duration_ms, None
-
-        for line in proc.stdout.splitlines():
-            if line.startswith("___OUT___"):
-                try:
-                    actual = json.loads(line[9:])
-                    return "ok", actual, duration_ms, None
-                except Exception:
-                    return "ok", line[9:], duration_ms, None
-
-        return "wrong_output", None, duration_ms, None
-
-    except subprocess.TimeoutExpired:
-        duration_ms = int((time.perf_counter() - start_time) * 1000)
-        return "timeout", None, duration_ms, "time"
-    except Exception as e:
-        duration_ms = int((time.perf_counter() - start_time) * 1000)
-        logger.error("Runner execution exception: %s", e)
-        return "runtime_error", None, duration_ms, None
+_JUDGE0_TO_OUTCOME = {
+    STATUS_ACCEPTED: "passed",
+    STATUS_WRONG_ANSWER: "wrong_output",
+    STATUS_RUNTIME_ERROR: "runtime_error",
+    STATUS_TIME_LIMIT_EXCEEDED: "timeout",
+    STATUS_COMPILATION_ERROR: "runtime_error",
+    STATUS_EXEC_FORMAT_ERROR: "runtime_error",
+}
 
 
 async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
     """
-    Execute source_code against each test_case dict and return results.
+    Execute source_code against each test_case via Judge0.
     Each result dict contains:
         test_case_id : str
         visibility   : "visible" | "hidden"
         outcome      : "passed" | "wrong_output" | "runtime_error" | "timeout"
         actual_output: any | None (only for visible tests)
         duration_ms  : int | None
-        limit_hit    : "time" | "memory" | "output" | None
     """
     settings = get_settings()
-    timeout = float(settings.runner_timeout_seconds)
-    mem_limit = int(settings.go_judge_memory_limit_mb)
-    use_go_judge = is_go_judge_available()
+    base_url = settings.runner_base_url.rstrip("/")
+    api_key = settings.runner_api_key
+    timeout = settings.runner_timeout_seconds
 
-    if use_go_judge:
-        logger.info("Using criyle/go-judge hardened sandbox runner")
-    else:
-        logger.info("go-judge not running; using isolated subprocess runner")
+    if not api_key:
+        raise RunnerUnavailableError("Judge0 API key is not configured.")
 
-    # Fast syntax check
-    try:
-        ast.parse(source_code)
-    except SyntaxError:
-        return [
-            {
+    host = urlparse(base_url).hostname or base_url
+    headers = {
+        "Content-Type": "application/json",
+        "X-RapidAPI-Key": api_key,
+        "X-RapidAPI-Host": host,
+    }
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        results = []
+        for tc in test_cases:
+            call = (tc.get("input_payload") or {}).get("call", "")
+            full_source = f"{source_code}\nprint({call})"
+            expected = str(tc.get("expected_output", ""))
+
+            try:
+                token = await _submit(client, base_url, headers, full_source)
+                result = await _poll(client, base_url, headers, token, timeout)
+            except RunnerUnavailableError:
+                raise
+            except Exception as exc:
+                logger.error("Judge0 execution failed for test %s: %s", tc.get("id"), exc)
+                result = {"outcome": "runtime_error", "actual_output": None, "duration_ms": None}
+
+            outcome = result["outcome"]
+            actual_output = result.get("actual_output")
+            if outcome == "passed" and actual_output is not None:
+                if str(actual_output).strip() != expected:
+                    outcome = "wrong_output"
+
+            results.append({
                 "test_case_id": tc["id"],
                 "visibility": tc["visibility"],
-                "outcome": "runtime_error",
-                "actual_output": None,
-                "duration_ms": 0,
-                "limit_hit": None,
-            }
-            for tc in test_cases
-        ]
+                "outcome": outcome,
+                "actual_output": actual_output if tc["visibility"] == "visible" else None,
+                "duration_ms": result.get("duration_ms"),
+            })
+        return results
 
-    results = []
-    for tc in test_cases:
-        call_expr = tc.get("description") or ""
-        expected_raw = tc.get("expected_output")
 
-        if not call_expr and "input_payload" in tc:
-            try:
-                payload = json.loads(tc["input_payload"]) if isinstance(tc["input_payload"], str) else tc["input_payload"]
-                call_expr = payload.get("call", "")
-            except Exception:
-                pass
+async def _submit(client, base_url, headers, source_code):
+    """Submit code to Judge0 and return the submission token."""
+    url = f"{base_url}/submissions"
+    params = {"base64_encoded": "false"}
+    payload = {
+        "source_code": source_code,
+        "language_id": PYTHON_LANGUAGE_ID,
+        "stdin": "",
+    }
+    resp = await client.post(url, params=params, headers=headers, json=payload)
+    if resp.status_code >= 400:
+        logger.error("Judge0 submission rejected: %s %s", resp.status_code, resp.text[:200])
+        raise RunnerUnavailableError(f"Judge0 rejected submission (HTTP {resp.status_code}).")
+    data = resp.json()
+    token = data.get("token")
+    if not token:
+        raise RunnerUnavailableError("Judge0 did not return a submission token.")
+    return token
 
-        if use_go_judge:
-            try:
-                status, actual, duration_ms, limit_hit = await run_in_go_judge(
-                    source_code, call_expr, timeout_seconds=timeout, memory_limit_mb=mem_limit
-                )
-            except Exception as e:
-                logger.warning("go-judge run error: %s; falling back to subprocess", e)
-                status, actual, duration_ms, limit_hit = _execute_single_test_subprocess(
-                    source_code, call_expr, timeout_seconds=timeout
-                )
-        else:
-            status, actual, duration_ms, limit_hit = await asyncio.to_thread(
-                _execute_single_test_subprocess, source_code, call_expr, timeout_seconds=timeout
-            )
 
-        if status == "ok":
-            norm_actual = _normalize_val(actual)
-            norm_expected = _normalize_val(expected_raw)
-            outcome = "passed" if norm_actual == norm_expected else "wrong_output"
-        elif status == "timeout":
-            outcome = "timeout"
-        else:
-            outcome = "runtime_error"
+async def _poll(client, base_url, headers, token, timeout):
+    """Poll Judge0 until the submission finishes, then return the normalized result."""
+    url = f"{base_url}/submissions/{token}"
+    params = {"base64_encoded": "false"}
+    deadline = asyncio.get_event_loop().time() + timeout
+    while True:
+        resp = await client.get(url, params=params, headers=headers)
+        if resp.status_code >= 400:
+            raise RunnerUnavailableError(f"Judge0 poll failed (HTTP {resp.status_code}).")
+        data = resp.json()
+        status = data.get("status") or {}
+        status_id = status.get("id")
 
-        vis = tc.get("visibility", "hidden")
-        safe_actual = str(actual) if vis == "visible" and actual is not None else None
+        if status_id in (STATUS_IN_QUEUE, STATUS_PROCESSING):
+            if asyncio.get_event_loop().time() > deadline:
+                return {"outcome": "timeout", "actual_output": None, "duration_ms": None}
+            await asyncio.sleep(1)
+            continue
 
-        results.append({
-            "test_case_id": tc["id"],
-            "visibility": vis,
+        if status_id == STATUS_INTERNAL_ERROR:
+            raise RunnerUnavailableError("Judge0 internal error.")
+
+        outcome = _JUDGE0_TO_OUTCOME.get(status_id, "runtime_error")
+
+        stdout = data.get("stdout") or ""
+        duration_ms = None
+        try:
+            duration_ms = int(float(data.get("time") or 0) * 1000)
+        except (TypeError, ValueError):
+            duration_ms = None
+
+        return {
             "outcome": outcome,
-            "actual_output": safe_actual,
+            "actual_output": stdout.strip() or None,
             "duration_ms": duration_ms,
-            "limit_hit": limit_hit,
-        })
-
-    return results
+        }
