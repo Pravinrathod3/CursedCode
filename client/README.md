@@ -59,6 +59,7 @@ npm run dev
 ## Documentation map
 
 - [`docs/00-project-overview.md`](docs/00-project-overview.md) — purpose, scope, personas, definition of done
+- [`docs/rules.md`](docs/rules.md) — cursedCode UI & AI agent JJK theming rules
 - [`docs/01-design-system-theme.md`](docs/01-design-system-theme.md) — visual language and JJK-inspired theme rules
 - [`docs/02-rules.md`](docs/02-rules.md) — product, UX, frontend, and safety rules
 - [`docs/03-stages-roadmap.md`](docs/03-stages-roadmap.md) — staged build plan for a 24-hour hackathon
