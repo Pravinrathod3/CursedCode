@@ -26,10 +26,10 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     xai_model: str = ""
 
-    # Code runner
-    runner_base_url: str = "http://localhost:2358"
+    # Code runner (Judge0)
+    runner_base_url: str = "https://judge0-ce.p.rapidapi.com"
     runner_api_key: str = ""
-    runner_timeout_seconds: int = 5
+    runner_timeout_seconds: int = 15
     max_code_bytes: int = 20_000
 
     # LangSmith (optional)

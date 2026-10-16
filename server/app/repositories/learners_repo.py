@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from supabase import Client
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
@@ -40,10 +42,40 @@ class LearnersRepo:
 
     def get_recurring_mistakes(self, learner_id: str) -> list[dict]:
         """Return mistake categories seen in >= 2 distinct challenges."""
-        resp = (
-            self.db.rpc(
-                "get_recurring_mistakes",
-                {"p_learner_id": learner_id},
-            ).execute()
+        # Submission ids for this learner, mapped to their challenge.
+        subs = (
+            self.db.table("submissions")
+            .select("id, challenge_id")
+            .eq("learner_id", learner_id)
+            .execute()
         )
-        return resp.data or []
+        rows = subs.data or []
+        if not rows:
+            return []
+        sub_ids = [r["id"] for r in rows]
+        sub_to_challenge = {r["id"]: r["challenge_id"] for r in rows}
+
+        # Mistake categories attached to those submissions.
+        mistakes = (
+            self.db.table("submission_mistakes")
+            .select("submission_id, mistake_categories(slug)")
+            .in_("submission_id", sub_ids)
+            .execute()
+        )
+
+        cat_challenges: dict[str, set] = defaultdict(set)
+        for m in (mistakes.data or []):
+            cat = (m.get("mistake_categories") or {}).get("slug")
+            if not cat:
+                continue
+            challenge_id = sub_to_challenge.get(m["submission_id"])
+            if challenge_id:
+                cat_challenges[cat].add(challenge_id)
+
+        result = [
+            {"slug": cat, "challenge_count": len(chals)}
+            for cat, chals in cat_challenges.items()
+            if len(chals) >= 2
+        ]
+        result.sort(key=lambda x: x["challenge_count"], reverse=True)
+        return result
