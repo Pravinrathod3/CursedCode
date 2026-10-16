@@ -1,36 +1,155 @@
-from supabase import Client
+import json
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
+from app.integrations.seed_challenges import SEED_CHALLENGES
 
 logger = get_logger(__name__)
 
+DIFF_TO_FRONTEND = {
+    "beginner": ("Grade 4", "Easy"),
+    "intermediate": ("Grade 3", "Medium"),
+    "advanced": ("Grade 2", "Hard"),
+}
+
 
 class ChallengesRepo:
-    def __init__(self, db: Client):
+    def __init__(self, db):
         self.db = db
+        self.seed_map = {c["id"]: c for c in SEED_CHALLENGES}
 
-    def list_published(self) -> list[dict]:
+    def list_published(self, learner_id: str | None = None) -> list[dict]:
+        # Only select columns guaranteed to exist in schema 17-schema.md
         resp = (
             self.db.table("challenges")
-            .select("id, slug, title, difficulty, sort_order")
+            .select("id, slug, title, statement, starter_code, difficulty, sort_order")
             .eq("is_published", True)
             .order("sort_order")
             .execute()
         )
-        return resp.data or []
+        challenges = resp.data or []
 
-    def get_by_slug(self, slug: str) -> dict:
+        # Get learner submissions status if learner_id is provided
+        submission_status_map = {}
+        if learner_id:
+            try:
+                learner_resp = self.db.table("learners").select("id").eq("learner_key", learner_id).execute()
+                if learner_resp.data:
+                    l_uuid = learner_resp.data[0]["id"]
+                    subs_resp = (
+                        self.db.table("submissions")
+                        .select("challenge_id, overall_passed")
+                        .eq("learner_id", l_uuid)
+                        .execute()
+                    )
+                    for s in subs_resp.data or []:
+                        cid = str(s["challenge_id"])
+                        if s.get("overall_passed"):
+                            submission_status_map[cid] = "Solved"
+                        elif cid not in submission_status_map:
+                            submission_status_map[cid] = "Attempted"
+            except Exception as e:
+                logger.warning("Could not calculate submission statuses: %s", e)
+
+        result = []
+        for ch in challenges:
+            cid = str(ch["id"])
+            slug = ch["slug"]
+            seed_data = self.seed_map.get(slug, {})
+
+            diff_val = ch.get("difficulty", "beginner")
+            default_grade, default_diff = DIFF_TO_FRONTEND.get(diff_val, ("Grade 4", "Easy"))
+
+            grade = seed_data.get("grade", default_grade)
+            difficulty = seed_data.get("difficulty", default_diff)
+            description = seed_data.get("description", "")
+            tags = seed_data.get("tags", ["Lists"])
+            estimated_time = seed_data.get("estimatedTime", "10 min")
+            status = submission_status_map.get(cid, "New")
+
+            result.append({
+                "id": slug,
+                "slug": slug,
+                "title": ch["title"],
+                "description": description,
+                "grade": grade,
+                "difficulty": difficulty,
+                "tags": tags,
+                "status": status,
+                "estimatedTime": estimated_time,
+                "sort_order": ch.get("sort_order", 0)
+            })
+
+        return result
+
+    def get_by_slug(self, slug_or_id: str) -> dict:
+        slug_clean = slug_or_id.strip().lower()
         resp = (
             self.db.table("challenges")
             .select("id, slug, title, statement, function_signature, starter_code, difficulty, sort_order")
-            .eq("slug", slug)
+            .eq("slug", slug_clean)
             .eq("is_published", True)
-            .single()
             .execute()
         )
-        if not resp.data:
-            raise NotFoundError(f"Challenge '{slug}' not found.")
-        return resp.data
+        data = resp.data or []
+        if not data:
+            try:
+                resp2 = (
+                    self.db.table("challenges")
+                    .select("id, slug, title, statement, function_signature, starter_code, difficulty, sort_order")
+                    .eq("id", slug_or_id)
+                    .eq("is_published", True)
+                    .execute()
+                )
+                data = resp2.data or []
+            except Exception:
+                data = []
+
+        if not data:
+            raise NotFoundError(f"Challenge '{slug_or_id}' not found.")
+
+        ch = data[0]
+        challenge_id = ch["id"]
+        slug = ch["slug"]
+        seed_data = self.seed_map.get(slug, {})
+
+        # Fetch visible test cases only
+        all_tests = self.get_test_cases(challenge_id)
+        visible_tests = []
+        hidden_count = 0
+
+        for t in all_tests:
+            if t["visibility"] == "visible":
+                visible_tests.append({
+                    "test": t["ordinal"],
+                    "call": t.get("description") or t.get("call", ""),
+                    "expected": str(t.get("expected_output", ""))
+                })
+            else:
+                hidden_count += 1
+
+        diff_val = ch.get("difficulty", "beginner")
+        default_grade, default_diff = DIFF_TO_FRONTEND.get(diff_val, ("Grade 4", "Easy"))
+
+        return {
+            "id": slug,
+            "uuid": challenge_id,
+            "slug": slug,
+            "title": ch["title"],
+            "description": seed_data.get("description", ""),
+            "statement": ch["statement"],
+            "function_signature": ch.get("function_signature", ""),
+            "starter_code": ch.get("starter_code", ""),
+            "starterCode": ch.get("starter_code", ""),
+            "grade": seed_data.get("grade", default_grade),
+            "difficulty": seed_data.get("difficulty", default_diff),
+            "tags": seed_data.get("tags", ["Lists"]),
+            "status": "New",
+            "estimatedTime": seed_data.get("estimatedTime", "10 min"),
+            "sort_order": ch.get("sort_order", 0),
+            "example": seed_data.get("example"),
+            "visibleTests": visible_tests,
+            "hiddenTestCount": hidden_count
+        }
 
     def get_test_cases(self, challenge_id: str) -> list[dict]:
         """Returns ALL test cases (visible + hidden) — never send to frontend."""

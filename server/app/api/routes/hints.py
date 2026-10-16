@@ -1,6 +1,4 @@
 from fastapi import APIRouter, Depends
-from supabase import Client
-
 from app.integrations.supabase_client import get_supabase
 from app.repositories.submissions_repo import SubmissionsRepo
 from app.repositories.hints_repo import HintsRepo
@@ -11,17 +9,17 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 router = APIRouter(prefix="/hint", tags=["hints"])
 
-MAX_HINTS = 5
+MAX_HINTS = 4
 
 
 @router.post("", response_model=HintResponse)
-async def get_hint(body: HintRequest, db: Client = Depends(get_supabase)):
+async def get_hint(body: HintRequest, db=Depends(get_supabase)):
     sub_repo = SubmissionsRepo(db)
     hints_repo = HintsRepo(db)
 
     sub = sub_repo.get_by_public_id(body.submission_id)
 
-    current_hints = sub["hints_requested"]
+    current_hints = sub.get("hints_requested", 0)
     next_level = min(current_hints + 1, MAX_HINTS)
 
     hint_row = hints_repo.get_hint(sub["challenge_id"], next_level)
@@ -40,5 +38,7 @@ async def get_hint(body: HintRequest, db: Client = Depends(get_supabase)):
     return HintResponse(
         submission_id=body.submission_id,
         hint_index=next_level,
+        level=next_level,
+        remaining=max(0, MAX_HINTS - next_level),
         hint=hint_text,
     )

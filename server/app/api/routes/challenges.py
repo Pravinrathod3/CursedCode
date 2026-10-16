@@ -12,8 +12,8 @@ def get_repo(db: Client = Depends(get_supabase)) -> ChallengesRepo:
 
 
 @router.get("", response_model=list[ChallengeListItem])
-async def list_challenges(repo: ChallengesRepo = Depends(get_repo)):
-    return repo.list_published()
+async def list_challenges(learner_id: str | None = None, repo: ChallengesRepo = Depends(get_repo)):
+    return repo.list_published(learner_id=learner_id)
 
 
 @router.get("/{challenge_slug}", response_model=ChallengeDetail)

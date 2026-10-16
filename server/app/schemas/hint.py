@@ -9,3 +9,5 @@ class HintResponse(BaseModel):
     submission_id: str
     hint_index: int
     hint: str
+    level: int = 1
+    remaining: int = 3

@@ -1,6 +1,6 @@
 # Project Rules (apply to ALL work)
 
-Frontend-specific rules: `frontend/CLAUDE.md`
+Frontend-specific rules: `client/docs/rules.md`
 Backend-specific rules: `backend/CLAUDE.md`
 
 Read these before making any change. If a rule conflicts with a request, ask the user instead of silently breaking the rule.

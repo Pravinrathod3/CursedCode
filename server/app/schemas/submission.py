@@ -6,7 +6,7 @@ from typing import Any, Literal
 class SubmitRequest(BaseModel):
     learner_id: str = Field(..., min_length=1, max_length=128)
     challenge_id: str = Field(..., min_length=1, max_length=128)
-    code: str = Field(..., min_length=1)
+    code: str = Field(default="")
 
     @field_validator("code")
     @classmethod
@@ -37,5 +37,6 @@ class SubmitResponse(BaseModel):
     challenge_id: str
     visible: list[VisibleResult]
     hidden: list[HiddenResult]
-    mistake_tags: list[str]
+    mistake_tags: list[str] = []
     explanation: str | None = None
+    limit: str | None = None

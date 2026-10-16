@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
 
     # Supabase — service role key; never expose to frontend
-    supabase_url: str
-    supabase_service_role_key: str
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
 
     # LLM provider
     llm_provider: str = "openrouter"
@@ -26,7 +26,10 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     xai_model: str = ""
 
-    # Code runner
+    # Code runner (go-judge & sandbox)
+    go_judge_url: str = "http://127.0.0.1:5050"
+    go_judge_enabled: bool = True
+    go_judge_memory_limit_mb: int = 64
     runner_base_url: str = "http://localhost:2358"
     runner_api_key: str = ""
     runner_timeout_seconds: int = 5
