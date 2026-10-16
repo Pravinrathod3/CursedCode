@@ -26,10 +26,13 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     xai_model: str = ""
 
-    # Code runner (Judge0)
-    runner_base_url: str = "https://judge0-ce.p.rapidapi.com"
+    # Code runner (go-judge & sandbox)
+    go_judge_url: str = "http://127.0.0.1:5050"
+    go_judge_enabled: bool = True
+    go_judge_memory_limit_mb: int = 64
+    runner_base_url: str = "http://localhost:2358"
     runner_api_key: str = ""
-    runner_timeout_seconds: int = 15
+    runner_timeout_seconds: int = 5
     max_code_bytes: int = 20_000
 
     # LangSmith (optional)
