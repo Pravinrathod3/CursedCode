@@ -10,6 +10,7 @@ Requires:
   RUNNER_API_KEY       RapidAPI key for Judge0
   RUNNER_TIMEOUT_SECONDS per-submission polling cap
 """
+import ast
 import asyncio
 from urllib.parse import urlparse
 
@@ -18,6 +19,7 @@ import httpx
 from app.core.config import get_settings
 from app.core.exceptions import RunnerUnavailableError
 from app.core.logging import get_logger
+from app.integrations.go_judge_client import is_go_judge_available, run_in_go_judge
 
 logger = get_logger(__name__)
 
@@ -43,6 +45,73 @@ _JUDGE0_TO_OUTCOME = {
     STATUS_COMPILATION_ERROR: "runtime_error",
     STATUS_EXEC_FORMAT_ERROR: "runtime_error",
 }
+
+
+def _normalize_val(val: any) -> any:
+    if isinstance(val, (int, float, bool, list, dict, set, tuple)):
+        return val
+    if isinstance(val, str):
+        val_str = val.strip()
+        try:
+            return ast.literal_eval(val_str)
+        except Exception:
+            return val_str
+    return val
+
+
+def _execute_single_test_subprocess(
+    source_code: str, call_expr: str, timeout_seconds: float = 2.0
+) -> tuple[str, any, int, str | None]:
+    """
+    Fallback subprocess runner when go-judge is not running.
+    Returns (outcome, actual_output, duration_ms, limit_hit).
+    """
+    script = f"""
+import sys, json
+
+{source_code}
+
+try:
+    _res = {call_expr}
+    try:
+        _out = json.dumps(_res)
+    except Exception:
+        _out = json.dumps(repr(_res))
+    print("___OUT___" + _out)
+except Exception as _e:
+    print("___ERR___" + type(_e).__name__ + ": " + str(_e), file=sys.stderr)
+    sys.exit(1)
+"""
+    start_time = time.perf_counter()
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+
+        if proc.returncode != 0:
+            return "runtime_error", None, duration_ms, None
+
+        for line in proc.stdout.splitlines():
+            if line.startswith("___OUT___"):
+                try:
+                    actual = json.loads(line[9:])
+                    return "ok", actual, duration_ms, None
+                except Exception:
+                    return "ok", line[9:], duration_ms, None
+
+        return "wrong_output", None, duration_ms, None
+
+    except subprocess.TimeoutExpired:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+        return "timeout", None, duration_ms, "time"
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+        logger.error("Runner execution exception: %s", e)
+        return "runtime_error", None, duration_ms, None
 
 
 async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:

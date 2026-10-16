@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
 
     # Supabase — service role key; never expose to frontend
-    supabase_url: str
-    supabase_service_role_key: str
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
 
     # LLM provider
     llm_provider: str = "openrouter"

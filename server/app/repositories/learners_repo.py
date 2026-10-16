@@ -8,7 +8,7 @@ logger = get_logger(__name__)
 
 
 class LearnersRepo:
-    def __init__(self, db: Client):
+    def __init__(self, db):
         self.db = db
 
     def get_or_create(self, learner_key: str) -> dict:
@@ -20,8 +20,12 @@ class LearnersRepo:
         )
         if resp.data:
             row = resp.data[0]
-            self.db.table("learners").update({"last_active_at": "now()"}).eq("id", row["id"]).execute()
+            try:
+                self.db.table("learners").update({"last_active_at": "now()"}).eq("id", row["id"]).execute()
+            except Exception:
+                pass
             return row
+
         # Create new pseudonymous learner
         created = (
             self.db.table("learners")
@@ -31,14 +35,18 @@ class LearnersRepo:
         return created.data[0]
 
     def get_concept_mastery(self, learner_id: str) -> list[dict]:
-        resp = (
-            self.db.table("concept_mastery")
-            .select("mastery_score, concept_id, concepts(slug, name)")
-            .eq("learner_id", learner_id)
-            .order("mastery_score", desc=False)
-            .execute()
-        )
-        return resp.data or []
+        try:
+            resp = (
+                self.db.table("concept_mastery")
+                .select("mastery_score, concept_id, concepts(slug, name)")
+                .eq("learner_id", learner_id)
+                .order("mastery_score", desc=False)
+                .execute()
+            )
+            return resp.data or []
+        except Exception as e:
+            logger.warning("Could not fetch concept mastery: %s", e)
+            return []
 
     def get_recurring_mistakes(self, learner_id: str) -> list[dict]:
         """Return mistake categories seen in >= 2 distinct challenges."""
