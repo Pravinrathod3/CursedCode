@@ -4,6 +4,7 @@ import LandingPage from './pages/LandingPage.jsx';
 import ChallengesPage from './pages/ChallengesPage.jsx';
 import WorkspacePage from './pages/WorkspacePage.jsx';
 import ProgressPage from './pages/ProgressPage.jsx';
+import MilestonesPage from './pages/MilestonesPage.jsx';
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -67,6 +68,15 @@ export default function App() {
   if (currentPath === '/progress') {
     return (
       <ProgressPage
+        onNavigate={navigate}
+        learnerName={learnerName}
+      />
+    );
+  }
+
+  if (currentPath === '/milestones') {
+    return (
+      <MilestonesPage
         onNavigate={navigate}
         learnerName={learnerName}
       />
