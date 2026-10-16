@@ -6,8 +6,11 @@ than executing learner code outside a sandbox.
 Guarantees hidden test inputs, outputs, and runner internals stay strictly
 server-side. Classifies outcomes into exactly four states: passed,
 wrong_output, runtime_error, timeout.
+Also detects when learner code mutates its input lists (mutates_input).
 """
+import ast
 import asyncio
+import json
 from urllib.parse import urlparse
 
 import httpx
@@ -42,6 +45,74 @@ _JUDGE0_TO_OUTCOME = {
 }
 
 
+def _build_mutated_source(source_code: str, call_str: str) -> str:
+    """
+    Build source code that executes the call and checks if any list argument
+    was mutated. Uses variable assignments so we can compare before/after.
+    Returns the full source string to send to Judge0.
+    """
+    # Parse call: func(arg1, arg2, ...)
+    try:
+        tree = ast.parse(f"_tmp = {call_str}", mode="exec")
+        assign = tree.body[0]
+        if not isinstance(assign.value, ast.Call):
+            return f"{source_code}\nprint({call_str})"
+        call_node = assign.value
+    except Exception:
+        return f"{source_code}\nprint({call_str})"
+
+    func_name = call_node.func.id if isinstance(call_node.func, ast.Name) else "func"
+
+    preamble = [source_code, "import json"]
+    arg_assignments = []
+    call_vars = []
+    list_info = []  # (var_name, original_source) for list args
+
+    for i, arg in enumerate(call_node.args):
+        if isinstance(arg, ast.List):
+            var_name = f"_mut_list_{i}"
+            list_source = ast.unparse(arg)
+            arg_assignments.append(f"{var_name} = {list_source}")
+            call_vars.append(var_name)
+            list_info.append((var_name, list_source))
+        else:
+            var_name = f"_mut_arg_{i}"
+            arg_source = ast.unparse(arg)
+            arg_assignments.append(f"{var_name} = {arg_source}")
+            call_vars.append(var_name)
+
+    preamble.extend(arg_assignments)
+
+    # Call function with variables
+    call_with_vars = f"{func_name}({', '.join(call_vars)})"
+    preamble.append(f"_result = {call_with_vars}")
+
+    # Mutation checks for each list argument
+    for var_name, list_source in list_info:
+        preamble.append(f"if {var_name} != {list_source}:")
+        preamble.append('    print("___MUTATED_INPUT___")')
+
+    preamble.append(f'print("___RESULT___" + json.dumps(_result))')
+
+    return "\n".join(preamble)
+
+
+def _parse_mutated_output(stdout: str) -> tuple:
+    """Parse Judge0 stdout to extract (actual_output, mutated_flag)."""
+    actual = None
+    mutated = False
+    for line in (stdout or "").splitlines():
+        if line.startswith("___RESULT___"):
+            payload = line[len("___RESULT___"):]
+            try:
+                actual = json.loads(payload)
+            except Exception:
+                actual = payload
+        elif line == "___MUTATED_INPUT___":
+            mutated = True
+    return actual, mutated
+
+
 async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
     """
     Execute source_code against each test_case via Judge0.
@@ -51,6 +122,7 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
         outcome      : "passed" | "wrong_output" | "runtime_error" | "timeout"
         actual_output: any | None (only for visible tests)
         duration_ms  : int | None
+        mutated      : bool — whether an input list was mutated
     """
     settings = get_settings()
     base_url = settings.runner_base_url.rstrip("/")
@@ -71,7 +143,7 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
         results = []
         for tc in test_cases:
             call = (tc.get("input_payload") or {}).get("call", "")
-            full_source = f"{source_code}\nprint({call})"
+            full_source = _build_mutated_source(source_code, call)
             expected = str(tc.get("expected_output", ""))
 
             try:
@@ -81,10 +153,12 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
                 raise
             except Exception as exc:
                 logger.error("Judge0 execution failed for test %s: %s", tc.get("id"), exc)
-                result = {"outcome": "runtime_error", "actual_output": None, "duration_ms": None}
+                result = {"outcome": "runtime_error", "actual_output": None, "duration_ms": None, "mutated": False}
 
             outcome = result["outcome"]
             actual_output = result.get("actual_output")
+            mutated = result.get("mutated", False)
+
             if outcome == "passed" and actual_output is not None:
                 if str(actual_output).strip() != expected:
                     outcome = "wrong_output"
@@ -95,6 +169,7 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
                 "outcome": outcome,
                 "actual_output": actual_output if tc["visibility"] == "visible" else None,
                 "duration_ms": result.get("duration_ms"),
+                "mutated": mutated,
             })
         return results
 
@@ -134,7 +209,7 @@ async def _poll(client, base_url, headers, token, timeout):
 
         if status_id in (STATUS_IN_QUEUE, STATUS_PROCESSING):
             if asyncio.get_event_loop().time() > deadline:
-                return {"outcome": "timeout", "actual_output": None, "duration_ms": None}
+                return {"outcome": "timeout", "actual_output": None, "duration_ms": None, "mutated": False}
             await asyncio.sleep(1)
             continue
 
@@ -144,6 +219,7 @@ async def _poll(client, base_url, headers, token, timeout):
         outcome = _JUDGE0_TO_OUTCOME.get(status_id, "runtime_error")
 
         stdout = data.get("stdout") or ""
+        actual_output, mutated = _parse_mutated_output(stdout)
         duration_ms = None
         try:
             duration_ms = int(float(data.get("time") or 0) * 1000)
@@ -152,6 +228,7 @@ async def _poll(client, base_url, headers, token, timeout):
 
         return {
             "outcome": outcome,
-            "actual_output": stdout.strip() or None,
+            "actual_output": actual_output,
             "duration_ms": duration_ms,
+            "mutated": mutated,
         }

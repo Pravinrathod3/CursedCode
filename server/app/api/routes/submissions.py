@@ -113,6 +113,10 @@ async def submit(body: SubmitRequest, db=Depends(get_db)):
                     mistake_tags.append("boundary_comparison")
                     break
 
+        # Check for mutates_input: function modified an input list
+        if any(res.get("mutated") for res in raw_results):
+            mistake_tags.append("mutates_input")
+
         if not mistake_tags:
             mistake_tags.append("off_by_one")
 
