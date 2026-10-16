@@ -1,6 +1,7 @@
 export default function Header({ currentPath, onNavigate, learnerName = 'zeroeight' }) {
   const isChallengesActive = currentPath === '/challenges' || currentPath.startsWith('/challenges/');
   const isProgressActive = currentPath === '/progress';
+  const isMilestonesActive = currentPath === '/milestones';
 
   return (
     <header className="site-header">
@@ -43,6 +44,14 @@ export default function Header({ currentPath, onNavigate, learnerName = 'zeroeig
             aria-current={isProgressActive ? 'page' : undefined}
           >
             Progress
+          </button>
+          <button
+            type="button"
+            className={`nav-link ${isMilestonesActive ? 'nav-link--active' : ''}`}
+            onClick={() => onNavigate('/milestones')}
+            aria-current={isMilestonesActive ? 'page' : undefined}
+          >
+            Milestones
           </button>
         </nav>
 
