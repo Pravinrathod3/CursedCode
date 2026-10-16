@@ -1544,6 +1544,26 @@
   border: 1px solid rgba(52, 211, 153, 0.45);
 }
 
+.outcome-pill--wrong_output,
+.outcome-pill--wrong-output {
+  color: var(--color-wrong-output);
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.outcome-pill--runtime_error,
+.outcome-pill--runtime-error {
+  color: var(--color-runtime-error);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+.outcome-pill--timeout {
+  color: var(--color-timeout);
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.45);
+}
+
 .outcome-pill--idle {
   color: var(--color-muted);
   background: rgba(224, 36, 58, 0.08);
@@ -1649,6 +1669,30 @@
   border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 12px;
+}
+
+.hint-step--revealed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: rgba(10, 4, 6, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--color-accent-violet);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.hint-step--revealed .step-badge {
+  color: var(--color-accent-blue);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .step-badge {
