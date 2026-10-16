@@ -143,6 +143,23 @@ async def submit(body: SubmitRequest, db=Depends(get_db)):
         seed_match = next((c for c in SEED_CHALLENGES if c["id"] == body.challenge_id), None)
         tags = seed_match.get("tags", []) if seed_match else []
 
+        # Determine if this pass used hints: check cumulative hints_requested
+        # across all submissions for this learner on this challenge.
+        learner_subs = (
+            db.table("submissions")
+            .select("hints_requested")
+            .eq("learner_id", learner_uuid)
+            .eq("challenge_id", challenge_uuid)
+            .execute()
+        )
+        max_hints = max(
+            (s.get("hints_requested", 0) for s in (learner_subs.data or [])),
+            default=0,
+        )
+        # A pass without hints counts as independent success; a pass after hints
+        # counts as a regular success but not toward independent_successes.
+        independent_pass = overall_passed and max_hints == 0
+
         for tag in tags:
             tag_slug = tag.lower()
             conc_resp = db.table("concepts").select("id").eq("slug", tag_slug).execute()
@@ -154,7 +171,7 @@ async def submit(body: SubmitRequest, db=Depends(get_db)):
                     cm = cm_resp.data[0]
                     attempts = cm.get("attempts", 0) + 1
                     successes = cm.get("successful_attempts", 0) + (1 if overall_passed else 0)
-                    indep = cm.get("independent_successes", 0) + (1 if overall_passed else 0)
+                    indep = cm.get("independent_successes", 0) + (1 if independent_pass else 0)
                     new_score = round(min(1.0, (successes * 0.7 + indep * 0.3) / max(1, attempts)) * 100, 1)
                     db.table("concept_mastery").update({
                         "attempts": attempts,
@@ -163,14 +180,16 @@ async def submit(body: SubmitRequest, db=Depends(get_db)):
                         "mastery_score": new_score,
                     }).eq("learner_id", learner_uuid).eq("concept_id", conc_id).execute()
                 else:
-                    score = 75.0 if overall_passed else 25.0
+                    successes = 1 if overall_passed else 0
+                    indep = 1 if independent_pass else 0
+                    new_score = round(min(1.0, (successes * 0.7 + indep * 0.3) / max(1, 1)) * 100, 1)
                     db.table("concept_mastery").insert({
                         "learner_id": learner_uuid,
                         "concept_id": conc_id,
                         "attempts": 1,
-                        "successful_attempts": 1 if overall_passed else 0,
-                        "independent_successes": 1 if overall_passed else 0,
-                        "mastery_score": score,
+                        "successful_attempts": successes,
+                        "independent_successes": indep,
+                        "mastery_score": new_score,
                     }).execute()
     except Exception as e:
         logger.warning("Could not update concept mastery: %s", e)
