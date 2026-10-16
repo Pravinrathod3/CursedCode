@@ -41,35 +41,36 @@ SEED_CHALLENGES = [
     {
         "id": "countpasses",
         "title": "Count Passes",
-        "description": "Count the number of test scores that meet or exceed a passing mark.",
-        "statement": "Write a function named `count_passes(scores, passing_mark)` that takes a list of integer `scores` and a threshold `passing_mark`. Return the count of scores that are greater than or equal to `passing_mark`.",
+        "description": "Count the number of test scores that are 40 or more.",
+        "statement": "Write a function named `count_passes(marks)` that takes a list of integer `marks` and returns how many of them are 40 or more.",
         "grade": "Grade 4",
         "difficulty": "Easy",
         "tags": ["Loops", "Comparison"],
         "estimatedTime": "10 min",
-        "starterCode": "def count_passes(scores, passing_mark):\n    # Count scores meeting or exceeding passing_mark\n    count = 0\n    for score in scores:\n        if score >= passing_mark:\n            count += 1\n    return count\n",
+        "starterCode": "def count_passes(marks):\n    # Count marks that are 40 or more\n    count = 0\n    for mark in marks:\n        if mark >= 40:\n            count += 1\n    return count\n",
         "example": {
-            "call": "count_passes([45, 80, 92, 58, 60], 60)",
-            "expected": "3",
-            "explanation": "Scores 80, 92, and 60 meet or exceed 60."
+            "call": "count_passes([30, 40, 50])",
+            "expected": "2",
+            "explanation": "Marks 40 and 50 are 40 or more, so the count is 2."
         },
         "visibleTests": [
-            {"call": "count_passes([45, 80, 92, 58, 60], 60)", "expected": "3"},
-            {"call": "count_passes([10, 20, 30], 50)", "expected": "0"},
-            {"call": "count_passes([70, 70, 70], 70)", "expected": "3"}
+            {"call": "count_passes([30, 40, 50])", "expected": "2"},
+            {"call": "count_passes([10, 20, 30])", "expected": "0"},
+            {"call": "count_passes([40, 40, 40])", "expected": "3"}
         ],
         "hiddenTests": [
-            {"call": "count_passes([], 50)", "expected": "0"},
-            {"call": "count_passes([100, 99, 98], 99)", "expected": "2"},
-            {"call": "count_passes([59], 60)", "expected": "0"},
-            {"call": "count_passes([60], 60)", "expected": "1"},
-            {"call": "count_passes([0, 0, 0], 0)", "expected": "3"}
+            {"call": "count_passes([])", "expected": "0"},
+            {"call": "count_passes([39, 40, 41])", "expected": "2"},
+            {"call": "count_passes([39])", "expected": "0"},
+            {"call": "count_passes([100, 5, 40, 0, 41])", "expected": "3"},
+            {"call": "count_passes([0])", "expected": "0"},
+            {"call": "count_passes([40, 39])", "expected": "1"}
         ],
         "hints": [
-            "Check boundary conditions: when a score exactly equals passing_mark, does your code count it?",
-            "Remember that 'meets or exceeds' means greater than or equal to (>=), not strictly greater than (>).",
-            "Initialize your counter to 0 before the loop and return it after the loop completes.",
-            "Iterate through scores with `for score in scores:` and check `if score >= passing_mark:`."
+            "Check the boundary: does a mark exactly equal to 40 count?",
+            "Remember '40 or more' means use `>=`, not `>`.",
+            "Start your counter at 0 before the loop, then return it after the loop ends.",
+            "Loop through each mark with `for mark in marks:` and check `if mark >= 40:`."
         ]
     },
     {
