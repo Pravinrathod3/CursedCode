@@ -1,3 +1,7 @@
+from collections import defaultdict
+
+from supabase import Client
+from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -46,41 +50,40 @@ class LearnersRepo:
 
     def get_recurring_mistakes(self, learner_id: str) -> list[dict]:
         """Return mistake categories seen in >= 2 distinct challenges."""
-        try:
-            resp = (
-                self.db.rpc(
-                    "get_recurring_mistakes",
-                    {"p_learner_id": learner_id},
-                ).execute()
-            )
-            if resp.data:
-                return resp.data
-        except Exception:
-            pass
-
-        # Reliable standard query fallback without custom RPC
-        try:
-            subs_resp = self.db.table("submissions").select("id, challenge_id").eq("learner_id", learner_id).execute()
-            sub_challenge_map = {s["id"]: s["challenge_id"] for s in subs_resp.data or []}
-            if not sub_challenge_map:
-                return []
-
-            mistakes_by_cat = {}
-            for sid, cid in sub_challenge_map.items():
-                m_resp = self.db.table("submission_mistakes").select("mistake_category_id").eq("submission_id", sid).execute()
-                for m in m_resp.data or []:
-                    cat_id = m["mistake_category_id"]
-                    if cat_id not in mistakes_by_cat:
-                        mistakes_by_cat[cat_id] = set()
-                    mistakes_by_cat[cat_id].add(cid)
-
-            result = []
-            for cat_id, distinct_challenges in mistakes_by_cat.items():
-                if len(distinct_challenges) >= 2:
-                    cat_resp = self.db.table("mistake_categories").select("slug").eq("id", cat_id).execute()
-                    slug = cat_resp.data[0]["slug"] if cat_resp.data else str(cat_id)
-                    result.append({"slug": slug, "challenge_count": len(distinct_challenges)})
-            return result
-        except Exception as e:
-            logger.warning("Could not calculate recurring mistakes: %s", e)
+        # Submission ids for this learner, mapped to their challenge.
+        subs = (
+            self.db.table("submissions")
+            .select("id, challenge_id")
+            .eq("learner_id", learner_id)
+            .execute()
+        )
+        rows = subs.data or []
+        if not rows:
             return []
+        sub_ids = [r["id"] for r in rows]
+        sub_to_challenge = {r["id"]: r["challenge_id"] for r in rows}
+
+        # Mistake categories attached to those submissions.
+        mistakes = (
+            self.db.table("submission_mistakes")
+            .select("submission_id, mistake_categories(slug)")
+            .in_("submission_id", sub_ids)
+            .execute()
+        )
+
+        cat_challenges: dict[str, set] = defaultdict(set)
+        for m in (mistakes.data or []):
+            cat = (m.get("mistake_categories") or {}).get("slug")
+            if not cat:
+                continue
+            challenge_id = sub_to_challenge.get(m["submission_id"])
+            if challenge_id:
+                cat_challenges[cat].add(challenge_id)
+
+        result = [
+            {"slug": cat, "challenge_count": len(chals)}
+            for cat, chals in cat_challenges.items()
+            if len(chals) >= 2
+        ]
+        result.sort(key=lambda x: x["challenge_count"], reverse=True)
+        return result
