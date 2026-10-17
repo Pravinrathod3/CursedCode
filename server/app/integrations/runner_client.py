@@ -92,7 +92,11 @@ def _build_mutated_source(source_code: str, call_str: str) -> str:
         preamble.append(f"if {var_name} != {list_source}:")
         preamble.append('    print("___MUTATED_INPUT___")')
 
-    preamble.append(f'print("___RESULT___" + json.dumps(_result))')
+    preamble.append('try:')
+    preamble.append('    _dumped = json.dumps(_result)')
+    preamble.append('except Exception:')
+    preamble.append('    _dumped = json.dumps(repr(_result))')
+    preamble.append('print("___RESULT___" + _dumped)')
 
     return "\n".join(preamble)
 
@@ -113,6 +117,112 @@ def _parse_mutated_output(stdout: str) -> tuple:
     return actual, mutated
 
 
+def _normalize_val(val: any) -> any:
+    if isinstance(val, (int, float, bool, list, dict, set, tuple)):
+        return val
+    if isinstance(val, str):
+        val_str = val.strip()
+        try:
+            return ast.literal_eval(val_str)
+        except Exception:
+            return val_str
+    return val
+
+
+def _run_single_local(full_source: str, expected_raw: any, timeout: float) -> dict:
+    import subprocess
+    import sys
+    import time
+
+    start_time = time.perf_counter()
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", full_source],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+        if proc.returncode != 0:
+            return {
+                "outcome": "runtime_error",
+                "actual_output": None,
+                "duration_ms": duration_ms,
+                "mutated": False,
+            }
+
+        actual_output, mutated = _parse_mutated_output(proc.stdout)
+        if actual_output is None and proc.stdout.strip():
+            for line in proc.stdout.splitlines():
+                if not line.startswith("___MUTATED_INPUT___"):
+                    actual_output = line.strip()
+                    break
+
+        norm_actual = _normalize_val(actual_output)
+        norm_expected = _normalize_val(expected_raw)
+
+        outcome = "passed" if norm_actual == norm_expected else "wrong_output"
+
+        return {
+            "outcome": outcome,
+            "actual_output": actual_output,
+            "duration_ms": duration_ms,
+            "mutated": mutated,
+        }
+    except subprocess.TimeoutExpired:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+        return {
+            "outcome": "timeout",
+            "actual_output": None,
+            "duration_ms": duration_ms,
+            "mutated": False,
+        }
+    except Exception as exc:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+        logger.error("Local runner execution exception: %s", exc)
+        return {
+            "outcome": "runtime_error",
+            "actual_output": None,
+            "duration_ms": duration_ms,
+            "mutated": False,
+        }
+
+
+async def _execute_local_fallback(source_code: str, test_cases: list[dict], timeout: float) -> list[dict]:
+    # Fast syntax check
+    try:
+        ast.parse(source_code)
+    except SyntaxError:
+        return [
+            {
+                "test_case_id": tc["id"],
+                "visibility": tc["visibility"],
+                "outcome": "runtime_error",
+                "actual_output": None,
+                "duration_ms": 0,
+                "mutated": False,
+            }
+            for tc in test_cases
+        ]
+
+    results = []
+    for tc in test_cases:
+        call = (tc.get("input_payload") or {}).get("call", "") or tc.get("description", "")
+        full_source = _build_mutated_source(source_code, call)
+        expected = tc.get("expected_output", "")
+
+        res = await asyncio.to_thread(_run_single_local, full_source, expected, timeout)
+        results.append({
+            "test_case_id": tc["id"],
+            "visibility": tc["visibility"],
+            "outcome": res["outcome"],
+            "actual_output": res["actual_output"] if tc["visibility"] == "visible" else None,
+            "duration_ms": res.get("duration_ms"),
+            "mutated": res.get("mutated", False),
+        })
+    return results
+
+
 async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
     """
     Execute source_code against each test_case via Judge0.
@@ -130,7 +240,8 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
     timeout = settings.runner_timeout_seconds
 
     if not api_key:
-        raise RunnerUnavailableError("Judge0 API key is not configured.")
+        logger.info("Judge0 API key not configured; using local runner fallback")
+        return await _execute_local_fallback(source_code, test_cases, float(timeout))
 
     host = urlparse(base_url).hostname or base_url
     headers = {
@@ -149,8 +260,9 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
             try:
                 token = await _submit(client, base_url, headers, full_source)
                 result = await _poll(client, base_url, headers, token, timeout)
-            except RunnerUnavailableError:
-                raise
+            except RunnerUnavailableError as rue:
+                logger.warning("Judge0 unavailable (%s); falling back to local runner", rue)
+                return await _execute_local_fallback(source_code, test_cases, float(timeout))
             except Exception as exc:
                 logger.error("Judge0 execution failed for test %s: %s", tc.get("id"), exc)
                 result = {"outcome": "runtime_error", "actual_output": None, "duration_ms": None, "mutated": False}
