@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     runner_base_url: str = "https://judge0-ce.p.rapidapi.com"
     runner_api_key: str = ""
     runner_timeout_seconds: int = 15
+    runner_memory_limit_mb: int = 64
     max_code_bytes: int = 20_000
 
     # LangSmith (optional)
