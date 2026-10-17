@@ -148,8 +148,18 @@ async def generate_dynamic_hint(
     statement = challenge.get("statement", "")
     function_signature = challenge.get("function_signature", "")
 
+    # Convert Pydantic models to dicts for uniform access
+    visible_dicts = []
+    for r in visible_results:
+        if hasattr(r, "model_dump"):
+            visible_dicts.append(r.model_dump())
+        elif isinstance(r, dict):
+            visible_dicts.append(r)
+        else:
+            visible_dicts.append({})
+
     # Sanitize visible test failures for context
-    failed_visible = [r for r in visible_results if r.get("outcome") and r.get("outcome") != "passed"]
+    failed_visible = [r for r in visible_dicts if r.get("outcome") and r.get("outcome") != "passed"]
     failure_context = ""
     if failed_visible:
         f = failed_visible[0]
@@ -235,14 +245,93 @@ Generate the response strictly according to the rules."""
             except Exception as parse_err:
                 logger.warning("Could not parse JSON from LLM Level 4 response: %s", parse_err)
                 # Fall back to safe deterministic patch
-                return _get_fallback_hint(challenge, source_code, mistake_tags, visible_results, hint_level)
+                return _get_fallback_hint(challenge, source_code, mistake_tags, visible_dicts, hint_level)
         else:
             validated_hint = validate_hint_guardrails(raw_response, hint_level, challenge.get("slug", ""))
             return validated_hint, None
 
     except Exception as exc:
         logger.error("Dynamic hint generation failed via LLM: %s. Using guardrailed fallback.", exc)
-        return _get_fallback_hint(challenge, source_code, mistake_tags, visible_results, hint_level)
+        return _get_fallback_hint(challenge, source_code, mistake_tags, visible_dicts, hint_level)
+
+
+# ---------------------------------------------------------------------------
+# LLM-Generated Explanation for Failed Submissions
+# ---------------------------------------------------------------------------
+
+
+async def generate_explanation(
+    challenge: dict,
+    source_code: str,
+    mistake_tags: list[str],
+    visible_results: list[dict],
+) -> str:
+    """
+    Generate an LLM explanation of why the submission failed, naming the specific cause.
+    Falls back to a deterministic explanation if the LLM provider is unreachable.
+    """
+    challenge_title = challenge.get("title", "the challenge")
+    statement = challenge.get("statement", "")
+
+    # Convert Pydantic models to dicts for uniform access
+    visible_dicts = []
+    for r in visible_results:
+        if hasattr(r, "model_dump"):
+            visible_dicts.append(r.model_dump())
+        elif isinstance(r, dict):
+            visible_dicts.append(r)
+        else:
+            visible_dicts.append({})
+
+    # Sanitize visible test failures for context
+    failed_visible = [r for r in visible_dicts if r.get("outcome") and r.get("outcome") != "passed"]
+    failure_context = ""
+    if failed_visible:
+        f = failed_visible[0]
+        call = f.get("call", "test input")
+        expected = f.get("expected", "")
+        got = f.get("got", "")
+        outcome = f.get("outcome", "wrong_output")
+        failure_context = f"Failed visible test: call={call}, expected={expected}, got={got}, outcome={outcome}."
+
+    mistake_summary = f"Detected mistake patterns: {', '.join(mistake_tags)}." if mistake_tags else ""
+
+    system_instruction = (
+        "You are a skilled coding tutor in Debug Dojo. "
+        "Explain exactly why the student's submission failed, naming the specific cause. "
+        "Do NOT provide the corrected code or complete solution. "
+        "Reference the concrete failure evidence (which test failed, expected vs actual output). "
+        "Keep it to 2-3 sentences, direct and instructional."
+    )
+
+    user_prompt = f"""Challenge: {challenge_title}
+Problem: {statement}
+
+Student's current code:
+{source_code}
+
+Execution Evidence:
+{failure_context}
+{mistake_summary}
+
+Explain clearly and specifically why this submission failed. Name the root cause, not just which tests failed."""
+
+    messages = [
+        {"role": "system", "content": system_instruction},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    try:
+        raw_response = await chat_completion(messages, max_tokens=250)
+        return raw_response.strip()
+    except Exception as exc:
+        logger.error("Explanation generation failed via LLM: %s. Using fallback.", exc)
+        # Fallback explanation
+        failed_count = sum(1 for r in visible_dicts if r.get("outcome") != "passed")
+        total_count = len(visible_dicts)
+        if mistake_tags:
+            return f"Your submission failed on {failed_count} of {total_count} visible tests. Common issues: {', '.join(mistake_tags)}. Review the failing test case details above."
+        return f"Your submission failed on {failed_count} of {total_count} visible tests. Review the failing test case details above."
 
 
 # ---------------------------------------------------------------------------
