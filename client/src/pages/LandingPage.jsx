@@ -1,8 +1,46 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Footer from '../components/Footer.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
+
+const CODE_SAMPLE = 'def find_first_match(values):\n    for index, value in enumerate(values):\n        if value > 0:\n            return index\n    return -1';
 
 export default function LandingPage({ onNavigate, learnerName, onUpdateLearnerName }) {
+  const { isLight } = useTheme();
   const [inputName, setInputName] = useState(learnerName || '');
+  const [typedCode, setTypedCode] = useState(() => (
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches ? CODE_SAMPLE : ''
+  ));
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+
+    let characterIndex = 0;
+    let deleting = false;
+    let typingTimer;
+
+    const animateCode = () => {
+      if (deleting) {
+        characterIndex = Math.max(0, characterIndex - 2);
+        setTypedCode(CODE_SAMPLE.slice(0, characterIndex));
+        if (characterIndex === 0) deleting = false;
+      } else {
+        characterIndex = Math.min(CODE_SAMPLE.length, characterIndex + 1);
+        setTypedCode(CODE_SAMPLE.slice(0, characterIndex));
+        if (characterIndex === CODE_SAMPLE.length) deleting = true;
+      }
+
+      const pause = characterIndex === CODE_SAMPLE.length ? 1500 : characterIndex === 0 ? 500 : 32;
+      typingTimer = window.setTimeout(animateCode, pause);
+    };
+
+    typingTimer = window.setTimeout(animateCode, 450);
+
+    return () => window.clearTimeout(typingTimer);
+  }, []);
+
+  const logoSrc = isLight
+    ? '/assets/brand/brand_logo_wordmark_light.png'
+    : '/assets/brand/brand_logo_wordmark.png';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -13,6 +51,17 @@ export default function LandingPage({ onNavigate, learnerName, onUpdateLearnerNa
 
   return (
     <div className="landing-layout">
+      <video
+        className="landing-video-background"
+        src="/assets/landing_energy.mp4"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
       {/* Decorative Manga Halftone Screentone Overlay */}
       <div className="manga-screentone" aria-hidden="true" />
 
@@ -20,25 +69,16 @@ export default function LandingPage({ onNavigate, learnerName, onUpdateLearnerNa
         <div className="landing-content">
           <div className="landing-brand-header">
             <img
-              src="/assets/brand/brand_logo_wordmark.png"
+              key={logoSrc}
+              src={logoSrc}
               alt="cursedCode"
               className="landing-brand-logo"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
-            <div className="brand-badge-pill">
-              <span className="badge-dot" aria-hidden="true">●</span>
-              <span>Fan Project · Python Practice Arena</span>
-            </div>
           </div>
 
-          <p className="landing-eyebrow">
-            <span className="eyebrow-accent">// PRACTICE ARENA</span>
-            <span>Python Practice for Patient Problem-Solvers</span>
-          </p>
-
-          <h1 className="hero-title">
-            FIND THE BUG.<br />
-            <span className="hero-gradient-text">KEEP THE INSIGHT.</span>
+          <h1 className="hero-title hero-title--tagline">
+            Debugging the dark arts of software engineering.
           </h1>
 
           <p className="hero-lead">
@@ -92,6 +132,15 @@ export default function LandingPage({ onNavigate, learnerName, onUpdateLearnerNa
 
         {/* Pillars / Three Tenets */}
         <aside className="landing-pillars" aria-label="Core training tenets">
+          <div className="landing-code-terminal" aria-label="Python code example">
+            <div className="landing-code-terminal__bar">
+              <span className="landing-code-lights" aria-hidden="true"><i /><i /><i /></span>
+              <span>practice.py</span>
+              <span className="landing-code-status">LIVE PREVIEW</span>
+            </div>
+            <pre className="landing-code-terminal__body"><code>{typedCode}<span className="landing-code-caret" aria-hidden="true" /></code></pre>
+            <div className="landing-code-terminal__footer"><span>Python 3</span><span>trace the logic · master each edge case</span></div>
+          </div>
           <div className="pillars-header">
             <span className="pillars-header__tag">TRAINING PROTOCOLS</span>
             <span className="pillars-header__sub">3 PILLARS</span>
