@@ -2,8 +2,26 @@ import { useState, useEffect, useMemo } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import GradeBadge from '../components/GradeBadge.jsx';
-import { getChallenges } from '../services/api.js';
+import { getChallenges, getLearnerProfile } from '../services/api.js';
 import { CHALLENGES } from '../data/challenges.js';
+
+const GRADE_LEVELS = [
+  { threshold: 0, grade: 'Grade 4', difficulty: 'Easy' },
+  { threshold: 0.2, grade: 'Grade 3', difficulty: 'Medium' },
+  { threshold: 0.4, grade: 'Grade 2', difficulty: 'Hard' },
+  { threshold: 0.6, grade: 'Semi-Grade 1', difficulty: 'Advanced' },
+  { threshold: 0.8, grade: 'Grade 1', difficulty: 'Expert' },
+  { threshold: 0.93, grade: 'Special Grade', difficulty: 'Supreme' }
+];
+
+function gradeFromScore(score) {
+  return [...GRADE_LEVELS].reverse().find((level) => score >= level.threshold);
+}
+
+function learnerInitials(name) {
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('');
+  return initials.toUpperCase() || '?';
+}
 
 // Milestone Tree Node Definitions (Progressive Levels independent of grade)
 const MILESTONE_NODES = [
@@ -115,6 +133,7 @@ const MILESTONE_NODES = [
 export default function MilestonesPage({ onNavigate, learnerName = 'zeroeight' }) {
   const [challenges, setChallenges] = useState(CHALLENGES);
   const [selectedNodeId, setSelectedNodeId] = useState('lvl-0');
+  const [profile, setProfile] = useState();
 
   useEffect(() => {
     let active = true;
@@ -130,6 +149,14 @@ export default function MilestonesPage({ onNavigate, learnerName = 'zeroeight' }
     return () => { active = false; };
   }, [learnerName]);
 
+  useEffect(() => {
+    let active = true;
+    getLearnerProfile(learnerName).then((data) => {
+      if (active) setProfile(data);
+    });
+    return () => { active = false; };
+  }, [learnerName]);
+
   // Compute number of solved problems
   const solvedChallenges = useMemo(() => {
     return challenges.filter((c) => c.status === 'Solved' || c.status === 'passed');
@@ -137,6 +164,16 @@ export default function MilestonesPage({ onNavigate, learnerName = 'zeroeight' }
 
   const solvedCount = solvedChallenges.length;
   const totalCount = challenges.length || 12;
+
+  const overallMastery = useMemo(() => {
+    if (!Array.isArray(profile?.mastery) || profile.mastery.length === 0) return null;
+    const scores = profile.mastery
+      .map((item) => Number(item?.score ?? item?.estimate))
+      .filter((score) => Number.isFinite(score) && score >= 0 && score <= 1);
+    if (scores.length === 0) return null;
+    return scores.reduce((total, score) => total + score, 0) / scores.length;
+  }, [profile]);
+  const learnerGrade = overallMastery === null ? null : gradeFromScore(overallMastery);
 
   // Determine current active level based on solvedCount (independent of grade)
   const currentLevelNode = useMemo(() => {
@@ -212,6 +249,36 @@ export default function MilestonesPage({ onNavigate, learnerName = 'zeroeight' }
               Your level rises strictly as you solve problems — completely independent of problem grade or difficulty.
               Conquer challenges, illuminate branches of the tree, and unlock higher developmental tiers.
             </p>
+          </div>
+        </section>
+
+        <section className="milestone-profile-card" aria-label="Learner profile">
+          <div className="milestone-profile-avatar" aria-hidden="true">{learnerInitials(learnerName)}</div>
+          <div className="milestone-profile-identity">
+            <span className="milestone-profile-kicker">LEARNER PROFILE</span>
+            <h2>{learnerName}</h2>
+            <span className="milestone-profile-level">Level {currentLevelNode.level} · {currentLevelNode.title}</span>
+          </div>
+          <div className="milestone-profile-mastery">
+            <span className="milestone-profile-kicker">OVERALL MASTERY</span>
+            {learnerGrade ? (
+              <div className="milestone-profile-grade">
+                <GradeBadge grade={learnerGrade.grade} difficulty={learnerGrade.difficulty} />
+                <span>{overallMastery.toFixed(2)}</span>
+              </div>
+            ) : (
+              <span className="milestone-profile-empty">
+                {profile === undefined
+                  ? 'Loading mastery…'
+                  : profile === null
+                  ? 'Mastery unavailable'
+                  : 'No mastery scores yet'}
+              </span>
+            )}
+          </div>
+          <div className="milestone-profile-solved">
+            <strong>{solvedCount}</strong>
+            <span>challenges solved</span>
           </div>
         </section>
 
