@@ -441,6 +441,20 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
               <p className="schematic-text" style={{ marginTop: '14px', lineHeight: 1.65 }}>
                 {challenge.statement}
               </p>
+              {challenge.constraints && (
+                <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(224, 36, 58, 0.06)', border: '1px dashed rgba(224, 36, 58, 0.25)', borderRadius: '6px', fontSize: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '8px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(224, 36, 58, 0.7)' }}>
+                    {challenge.constraints.time_limit_ms && <span><span aria-hidden="true">⏱</span> Time Limit: {challenge.constraints.time_limit_ms}ms</span>}
+                    {challenge.constraints.memory_limit_mb && <span><span aria-hidden="true">💾</span> Memory: {challenge.constraints.memory_limit_mb}MB</span>}
+                    {challenge.constraints.time_complexity && <span><span aria-hidden="true">⚡</span> Complexity: {challenge.constraints.time_complexity}</span>}
+                  </div>
+                  {challenge.constraints.input_constraints && (
+                    <div style={{ fontSize: '12px', color: 'var(--color-muted)', lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 'bold', color: 'rgba(224, 36, 58, 0.9)' }}>Input Constraints:</span> {challenge.constraints.input_constraints}
+                    </div>
+                  )}
+                </div>
+              )}
             </article>
 
             {/* Box 2: Example Vectors */}

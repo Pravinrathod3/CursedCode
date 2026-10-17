@@ -76,7 +76,10 @@ class ChallengesRepo:
                 "tags": tags,
                 "status": status,
                 "estimatedTime": estimated_time,
-                "sort_order": ch.get("sort_order", 0)
+                "sort_order": ch.get("sort_order", 0),
+                "time_limit_ms": seed_data.get("time_limit_ms"),
+                "input_constraints": seed_data.get("input_constraints"),
+                "time_complexity": seed_data.get("time_complexity"),
             })
 
         return result
@@ -160,7 +163,13 @@ class ChallengesRepo:
             "sort_order": ch.get("sort_order", 0),
             "example": example,
             "visibleTests": visible_tests,
-            "hiddenTestCount": hidden_count
+            "hiddenTestCount": hidden_count,
+            "constraints": {
+                "time_limit_ms": seed_data.get("time_limit_ms"),
+                "memory_limit_mb": seed_data.get("memory_limit_mb"),
+                "input_constraints": seed_data.get("input_constraints"),
+                "time_complexity": seed_data.get("time_complexity"),
+            },
         }
 
     def get_test_cases(self, challenge_id: str) -> list[dict]:
