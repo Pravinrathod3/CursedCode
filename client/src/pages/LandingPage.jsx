@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import Footer from '../components/Footer.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 export default function LandingPage({ onNavigate, learnerName, onUpdateLearnerName }) {
+  const { isLight, toggleTheme } = useTheme();
   const [inputName, setInputName] = useState(learnerName || '');
+
+  const logoSrc = isLight
+    ? '/assets/brand/brand_logo_wordmark_light.png'
+    : '/assets/brand/brand_logo_wordmark.png';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -20,14 +26,27 @@ export default function LandingPage({ onNavigate, learnerName, onUpdateLearnerNa
         <div className="landing-content">
           <div className="landing-brand-header">
             <img
-              src="/assets/brand/brand_logo_wordmark.png"
+              key={logoSrc}
+              src={logoSrc}
               alt="cursedCode"
               className="landing-brand-logo"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
-            <div className="brand-badge-pill">
-              <span className="badge-dot" aria-hidden="true">●</span>
-              <span>Fan Project · Python Practice Arena</span>
+            <div className="landing-brand-actions">
+              <button
+                type="button"
+                className="theme-toggle-btn landing-theme-toggle"
+                onClick={toggleTheme}
+                aria-label={`Switch to ${isLight ? 'Dark Domain' : 'Light Domain'} mode`}
+                title={`Current: ${isLight ? 'Light Domain (#00E3FF)' : 'Dark Domain (Sukuna)'}. Click to switch.`}
+              >
+                <span className="theme-toggle-icon" aria-hidden="true">{isLight ? '🌙' : '☀️'}</span>
+                <span className="theme-toggle-text">{isLight ? 'DARK' : 'LIGHT'}</span>
+              </button>
+              <div className="brand-badge-pill">
+                <span className="badge-dot" aria-hidden="true">●</span>
+                <span>Fan Project · Python Practice Arena</span>
+              </div>
             </div>
           </div>
 

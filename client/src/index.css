@@ -43,6 +43,36 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+[data-theme="light"],
+:root[data-theme="light"] {
+  /* Light Domain Tokens - Infinite Void Cyan #00E3FF & Pure White */
+  --color-bg: #FFFFFF;
+  --color-panel: rgba(255, 255, 255, 0.92);
+  --color-panel-hover: rgba(240, 249, 255, 0.98);
+  --color-text: #0F172A;
+  --color-muted: #475569;
+  --color-accent-red: #00E3FF;
+  --color-accent-crimson: #00B8D4;
+  --color-accent-darkred: #0097A7;
+  --color-accent-blue: #00E3FF;
+  --color-accent-violet: #00B8D4;
+  --color-passed: #059669;
+  --color-wrong-output: #D97706;
+  --color-runtime-error: #DC2626;
+  --color-timeout: #0284C7;
+
+  /* Structural & Glassmorphic Tokens */
+  --border-color: rgba(0, 227, 255, 0.40);
+  --border-subtle: rgba(0, 227, 255, 0.20);
+  --tile-bg: rgba(255, 255, 255, 0.92);
+  --tile-border: 1px solid rgba(0, 227, 255, 0.35);
+  --tile-shadow: 0 8px 32px 0 rgba(0, 227, 255, 0.12), inset 0 0 0 1px rgba(0, 227, 255, 0.18);
+
+  color: #0F172A;
+  background-color: #FFFFFF;
+  color-scheme: light;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -60,6 +90,19 @@ body {
   background-attachment: fixed;
   background-repeat: no-repeat;
   color: var(--color-text);
+}
+
+[data-theme="light"] body,
+body[data-theme="light"] {
+  background-color: #F8FAFC;
+  background-image: 
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.88) 0%, rgba(240, 249, 255, 0.80) 40%, rgba(255, 255, 255, 0.92) 100%),
+    url('/assets/backdrops/gojo_domain_bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: #0F172A;
 }
 
 button, input, select, textarea {
