@@ -1,6 +1,14 @@
 from pydantic import BaseModel, Field
 
 
+class CodePatch(BaseModel):
+    target_line: int
+    original_snippet: str
+    replacement_snippet: str
+    explanation: str
+    patched_code: str | None = None
+
+
 class HintRequest(BaseModel):
     submission_id: str = Field(..., min_length=1, max_length=128)
 
@@ -11,3 +19,5 @@ class HintResponse(BaseModel):
     hint: str
     level: int = 1
     remaining: int = 3
+    code_patch: CodePatch | None = None
+
