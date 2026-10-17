@@ -147,6 +147,20 @@ def _save_problem_to_db(db, problem_data: dict, visible_tests: list, hidden_test
             "sort_order": 50,
         }).execute()
 
+    # Clear old test results (foreign key to test_cases) then old test cases
+    try:
+        existing_tc = (
+            db.table("test_cases")
+            .select("id")
+            .eq("challenge_id", c_uuid)
+            .execute()
+        )
+        tc_ids = [row["id"] for row in (existing_tc.data or [])]
+        if tc_ids:
+            db.table("test_results").delete().in_("test_case_id", tc_ids).execute()
+    except Exception:
+        pass
+
     # Clear old test cases for this challenge
     try:
         db.table("test_cases").delete().eq("challenge_id", c_uuid).execute()
