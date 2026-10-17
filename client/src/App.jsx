@@ -5,6 +5,7 @@ import ChallengesPage from './pages/ChallengesPage.jsx';
 import WorkspacePage from './pages/WorkspacePage.jsx';
 import ProgressPage from './pages/ProgressPage.jsx';
 import MilestonesPage from './pages/MilestonesPage.jsx';
+import ImportSheetPage from './pages/ImportSheetPage.jsx';
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -77,6 +78,15 @@ export default function App() {
   if (currentPath === '/milestones') {
     return (
       <MilestonesPage
+        onNavigate={navigate}
+        learnerName={learnerName}
+      />
+    );
+  }
+
+  if (currentPath === '/import') {
+    return (
+      <ImportSheetPage
         onNavigate={navigate}
         learnerName={learnerName}
       />

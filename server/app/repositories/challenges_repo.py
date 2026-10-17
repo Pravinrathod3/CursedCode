@@ -119,9 +119,13 @@ class ChallengesRepo:
 
         for t in all_tests:
             if t["visibility"] == "visible":
+                payload = t.get("input_payload") or {}
+                call_str = payload.get("call") if isinstance(payload, dict) else None
+                if not call_str:
+                    call_str = t.get("call") or t.get("description", "")
                 visible_tests.append({
                     "test": t["ordinal"],
-                    "call": t.get("description") or t.get("call", ""),
+                    "call": call_str,
                     "expected": str(t.get("expected_output", ""))
                 })
             else:
@@ -130,23 +134,31 @@ class ChallengesRepo:
         diff_val = ch.get("difficulty", "beginner")
         default_grade, default_diff = DIFF_TO_FRONTEND.get(diff_val, ("Grade 4", "Easy"))
 
+        example = seed_data.get("example")
+        if not example and visible_tests:
+            example = {
+                "call": visible_tests[0]["call"],
+                "expected": visible_tests[0]["expected"],
+                "explanation": f"Returns {visible_tests[0]['expected']} for {visible_tests[0]['call']}."
+            }
+
         return {
             "id": slug,
             "uuid": challenge_id,
             "slug": slug,
             "title": ch["title"],
-            "description": seed_data.get("description", ""),
+            "description": seed_data.get("description") or ch.get("statement", "")[:120] + "...",
             "statement": ch["statement"],
             "function_signature": ch.get("function_signature", ""),
             "starter_code": ch.get("starter_code", ""),
             "starterCode": ch.get("starter_code", ""),
             "grade": seed_data.get("grade", default_grade),
             "difficulty": seed_data.get("difficulty", default_diff),
-            "tags": seed_data.get("tags", ["Lists"]),
+            "tags": seed_data.get("tags", ["Algorithms"]),
             "status": "New",
-            "estimatedTime": seed_data.get("estimatedTime", "10 min"),
+            "estimatedTime": seed_data.get("estimatedTime", "15 min"),
             "sort_order": ch.get("sort_order", 0),
-            "example": seed_data.get("example"),
+            "example": example,
             "visibleTests": visible_tests,
             "hiddenTestCount": hidden_count
         }

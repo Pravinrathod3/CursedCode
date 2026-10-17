@@ -141,3 +141,64 @@ export async function getLearnerProfile(learnerId) {
     return null;
   }
 }
+
+/**
+ * Fetch available curated problem sheets (Striver's A2Z, CP-31).
+ */
+export async function getCuratedSheets() {
+  const res = await apiFetch('/api/importer/sheets');
+  if (!res.ok) {
+    throw new Error(`Failed to load sheets (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
+ * Generate visible test cases and hidden edge cases via OpenRouter.
+ */
+export async function generateAITestCases(problemData) {
+  const res = await apiFetch('/api/importer/generate-tests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(problemData)
+  });
+  if (!res.ok) {
+    throw new Error(`AI testcase generation failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
+ * Import a single problem into the database with test cases and edge cases.
+ */
+export async function importSingleProblem(problemData) {
+  const res = await apiFetch('/api/importer/import-problem', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(problemData)
+  });
+  if (!res.ok) {
+    throw new Error(`Problem import failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
+ * Batch import selected problems from a curated sheet with OpenRouter edge cases.
+ */
+export async function batchImportSheet(sheetId, problemIds = [], autoGenerateTests = true) {
+  const res = await apiFetch('/api/importer/batch-import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sheet_id: sheetId,
+      problem_ids: problemIds,
+      auto_generate_tests: autoGenerateTests
+    })
+  });
+  if (!res.ok) {
+    throw new Error(`Batch import failed (${res.status})`);
+  }
+  return await res.json();
+}
+
