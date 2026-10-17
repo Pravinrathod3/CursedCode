@@ -188,6 +188,20 @@ def _run_single_local(full_source: str, expected_raw: any, timeout: float) -> di
         }
 
 
+def _get_call_from_testcase(tc: dict) -> str:
+    payload = tc.get("input_payload")
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            pass
+    if isinstance(payload, dict):
+        call = payload.get("call", "")
+        if call:
+            return call
+    return tc.get("description", "") or ""
+
+
 async def _execute_local_fallback(source_code: str, test_cases: list[dict], timeout: float) -> list[dict]:
     # Fast syntax check
     try:
@@ -207,7 +221,7 @@ async def _execute_local_fallback(source_code: str, test_cases: list[dict], time
 
     results = []
     for tc in test_cases:
-        call = (tc.get("input_payload") or {}).get("call", "") or tc.get("description", "")
+        call = _get_call_from_testcase(tc)
         full_source = _build_mutated_source(source_code, call)
         expected = tc.get("expected_output", "")
 
@@ -253,7 +267,7 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
     async with httpx.AsyncClient(timeout=timeout) as client:
         results = []
         for tc in test_cases:
-            call = (tc.get("input_payload") or {}).get("call", "")
+            call = _get_call_from_testcase(tc)
             full_source = _build_mutated_source(source_code, call)
             expected = str(tc.get("expected_output", ""))
 
