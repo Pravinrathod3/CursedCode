@@ -4,6 +4,7 @@ import Footer from '../components/Footer.jsx';
 import GradeBadge from '../components/GradeBadge.jsx';
 import { CHALLENGES } from '../data/challenges.js';
 import { getChallenge, submitCode, getHint } from '../services/api.js';
+import botAvatarImg from '../assets/hint_bot.webp';
 
 function formatOutcome(outcome) {
   switch (outcome) {
@@ -177,6 +178,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
   const [revealedHints, setRevealedHints] = useState([]);
   const [isFetchingHint, setIsFetchingHint] = useState(false);
   const [remainingHints, setRemainingHints] = useState(4);
+  const [patchApplied, setPatchApplied] = useState(false);
 
   // Line tracking and floating bot state
   const [activeLine, setActiveLine] = useState(1);
@@ -203,6 +205,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
         setHiddenResults([]);
         setRevealedHints([]);
         setRemainingHints(4);
+        setPatchApplied(false);
         setBotActive(false);
         setActiveLine(1);
         setTargetLine(1);
@@ -220,6 +223,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
   const handleRun = async () => {
     if (isRunning) return;
     setIsRunning(true);
+    setPatchApplied(false);
     setSandboxStatus('Running code in sandbox…');
 
     try {
@@ -247,24 +251,59 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
   };
 
   const handleGetHint = async () => {
-    if (!submissionId || isFetchingHint) return;
+    if (isFetchingHint) return;
     setIsFetchingHint(true);
 
     try {
-      const res = await getHint(submissionId);
+      let currentSubId = submissionId;
+      if (!currentSubId) {
+        setSandboxStatus('Evaluating code for hints…');
+        const submitRes = await submitCode(learnerName, challenge.id, code);
+        currentSubId = submitRes.submission_id;
+        setSubmissionId(currentSubId);
+        setVisibleResults(submitRes.visible || []);
+        setHiddenResults(submitRes.hidden || []);
+        setExplanation(submitRes.explanation || '');
+        setMistakeTags(submitRes.mistake_tags || []);
+        setLimitHit(submitRes.limit || null);
+        setHasRun(true);
+        setSandboxStatus('Code evaluated');
+      }
+
+      const res = await getHint(currentSubId);
       setRevealedHints((prev) => {
         if (prev.some((h) => h.index === res.hint_index)) return prev;
-        return [...prev, { index: res.hint_index, text: res.hint }];
+        return [...prev, { index: res.hint_index, text: res.hint, code_patch: res.code_patch }];
       });
+      if (res.code_patch) {
+        setPatchApplied(false);
+      }
       if (res.remaining !== undefined) {
         setRemainingHints(res.remaining);
       } else {
         setRemainingHints((prev) => Math.max(0, prev - 1));
       }
-    } catch {
-      // Ignore or maintain state
+    } catch (err) {
+      console.error('Failed to get hint:', err);
+      setSandboxStatus('Could not fetch hint. Please verify connection and try again.');
     } finally {
       setIsFetchingHint(false);
+    }
+  };
+
+  const handleApplyCodePatch = (patch) => {
+    if (!patch) return;
+    const patched = patch.patched_code || (
+      code.split('\n').map((line, idx) => (idx + 1 === patch.target_line ? patch.replacement_snippet : line)).join('\n')
+    );
+    setCode(patched);
+    if (patch.target_line) {
+      setTargetLine(patch.target_line);
+    }
+    setPatchApplied(true);
+    if (textareaRef.current && patch.target_line) {
+      const targetScrollTop = Math.max(0, (patch.target_line - 1) * 24 - 80);
+      textareaRef.current.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
     }
   };
 
@@ -301,7 +340,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
     } else {
       target = activeLine || (codeLines.length > 1 ? 2 : 1);
       // Automatically unlock first hint if available and none unlocked yet
-      if (revealedHints.length === 0 && submissionId && !isFetchingHint) {
+      if (revealedHints.length === 0 && !isFetchingHint) {
         handleGetHint();
       }
     }
@@ -461,7 +500,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                   }}
                 >
                   <div className="bot-station-avatar-wrap">
-                    <span className="bot-station-avatar-emoji">🤖</span>
+                    <img src={botAvatarImg} alt="Bot Avatar" className="bot-station-img" />
                     <span className="bot-station-avatar-beacon" />
                   </div>
                   <div className="bot-station-info">
@@ -502,9 +541,39 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                   {revealedHints.length > 0 ? (
                     <div style={{ marginTop: '4px' }}>
                       {revealedHints.map((h) => (
-                        <div key={`hist-hint-${h.index}`} style={{ marginBottom: '6px' }}>
+                        <div key={`hist-hint-${h.index}`} style={{ marginBottom: '8px' }}>
                           <span className="step-badge" style={{ marginRight: '8px' }}>Hint {h.index}</span>
                           <span className="schematic-text" style={{ fontSize: '12.5px' }}>{h.text}</span>
+                          {h.code_patch && (
+                            <div className="bot-patch-box" style={{ marginTop: '6px' }}>
+                              <div className="bot-patch-header">
+                                <span className="bot-patch-tag">⚡ GUARDRAILED FIX (LINE {h.code_patch.target_line})</span>
+                              </div>
+                              <div className="bot-patch-diff">
+                                {h.code_patch.original_snippet && (
+                                  <div className="bot-diff-line bot-diff-line--del">
+                                    <span className="diff-sign">-</span>
+                                    <code>{h.code_patch.original_snippet}</code>
+                                  </div>
+                                )}
+                                <div className="bot-diff-line bot-diff-line--add">
+                                  <span className="diff-sign">+</span>
+                                  <code>{h.code_patch.replacement_snippet}</code>
+                                </div>
+                              </div>
+                              {patchApplied ? (
+                                <div className="bot-patch-success">✓ Patch applied! Press RUN to test.</div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="bot-patch-apply-btn"
+                                  onClick={() => handleApplyCodePatch(h.code_patch)}
+                                >
+                                  ⚡ Apply Bot Fix to Line {h.code_patch.target_line}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -518,7 +587,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                     </p>
                   )}
 
-                  {remainingHints > 0 && revealedHints.length < 4 && hasRun && submissionId && (
+                  {remainingHints > 0 && revealedHints.length < 4 && (
                     <button
                       type="button"
                       className="secondary-btn hint-btn"
@@ -560,7 +629,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                     }}
                     title={botActive ? "Dock bot back" : (hasFailedTests ? `Hover bot to error line ${suspectErrorLine}` : `Hover bot to line ${activeLine}`)}
                   >
-                    <span className="bot-quick-emoji">🤖</span>
+                    <img src={botAvatarImg} alt="Bot" className="bot-quick-img" />
                     <span>
                       {botActive
                         ? `DISMISS (LN ${targetLine})`
@@ -605,7 +674,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                   {/* Active/Target line highlight beam */}
                   {botActive && targetLine && (
                     <div
-                      className={`editor-line-highlight ${botMode === 'error' ? 'editor-line-highlight--error' : 'editor-line-highlight--hint'}`}
+                      className={`editor-line-highlight ${patchApplied ? 'editor-line-highlight--patched' : (botMode === 'error' ? 'editor-line-highlight--error' : 'editor-line-highlight--hint')}`}
                       style={{
                         top: `${(targetLine - 1) * 24 + 14 - scrollTop}px`
                       }}
@@ -632,7 +701,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                     <div
                       className={`editor-floating-bot ${botMode === 'error' ? 'editor-floating-bot--error' : 'editor-floating-bot--hint'}`}
                       style={{
-                        top: `${Math.max(10, (targetLine - 1) * 24 + 14 - scrollTop)}px`
+                        top: `${Math.max(6, (targetLine - 1) * 24 + 14 - 12 - scrollTop)}px`
                       }}
                     >
                       <div
@@ -640,8 +709,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                         onClick={() => setBotActive(false)}
                         title="Click to dismiss bot"
                       >
-                        <span className="floating-bot-emoji">🤖</span>
-                        <span className="floating-bot-pulse" />
+                        <img src={botAvatarImg} alt="Cursed Shikigami Bot" className="floating-bot-img" />
                       </div>
 
                       <div className="bot-speech-bubble" role="dialog" aria-label="Bot diagnostic speech bubble">
@@ -684,12 +752,45 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                                       ? 'Click unlock below to generate diagnostic hints for this challenge.'
                                       : 'Examine this line carefully. Run tests to calibrate progressive hints.')}
                               </p>
+
+                              {latestHint?.code_patch && (
+                                <div className="bot-patch-box">
+                                  <div className="bot-patch-header">
+                                    <span className="bot-patch-tag">⚡ GUARDRAILED FIX (LINE {latestHint.code_patch.target_line})</span>
+                                  </div>
+                                  <div className="bot-patch-diff">
+                                    {latestHint.code_patch.original_snippet && (
+                                      <div className="bot-diff-line bot-diff-line--del">
+                                        <span className="diff-sign">-</span>
+                                        <code>{latestHint.code_patch.original_snippet}</code>
+                                      </div>
+                                    )}
+                                    <div className="bot-diff-line bot-diff-line--add">
+                                      <span className="diff-sign">+</span>
+                                      <code>{latestHint.code_patch.replacement_snippet}</code>
+                                    </div>
+                                  </div>
+                                  {patchApplied ? (
+                                    <div className="bot-patch-success">
+                                      ✓ Patch applied to line {latestHint.code_patch.target_line}! Press RUN to verify.
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="bot-patch-apply-btn"
+                                      onClick={() => handleApplyCodePatch(latestHint.code_patch)}
+                                    >
+                                      <span>⚡ Apply Bot Fix to Line {latestHint.code_patch.target_line}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
 
                         <div className="bot-speech-bubble-actions">
-                          {botMode === 'hint' && remainingHints > 0 && revealedHints.length < 4 && hasRun && submissionId && (
+                          {botMode === 'hint' && remainingHints > 0 && revealedHints.length < 4 && (
                             <button
                               type="button"
                               className="secondary-btn bot-bubble-btn"
@@ -699,18 +800,17 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                               {isFetchingHint ? 'Fetching hint…' : `Next Hint (${remainingHints} left)`}
                             </button>
                           )}
-                          {botMode === 'error' && (
+                          {botMode === 'error' && remainingHints > 0 && (
                             <button
                               type="button"
                               className="secondary-btn bot-bubble-btn"
                               onClick={() => {
                                 setBotMode('hint');
-                                if (revealedHints.length === 0 && submissionId) {
-                                  handleGetHint();
-                                }
+                                handleGetHint();
                               }}
+                              disabled={isFetchingHint}
                             >
-                              💡 Give me a hint
+                              {isFetchingHint ? 'Fetching hint…' : '💡 Give me a hint'}
                             </button>
                           )}
                           <button
