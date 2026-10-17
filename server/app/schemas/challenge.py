@@ -25,6 +25,9 @@ class ChallengeListItem(BaseModel):
     status: str = "New"
     estimatedTime: str = "10 min"
     sort_order: int = 0
+    time_limit_ms: int | None = None
+    input_constraints: str | None = None
+    time_complexity: str | None = None
 
 
 class ChallengeDetail(ChallengeListItem):
@@ -35,3 +38,4 @@ class ChallengeDetail(ChallengeListItem):
     example: ExampleCase | None = None
     visibleTests: list[VisibleTestCase] = []
     hiddenTestCount: int = 5
+    constraints: dict | None = None

@@ -49,6 +49,10 @@ class ImportProblemRequest(BaseModel):
     visible_tests: list[TestCaseItem] = []
     hidden_tests: list[TestCaseItem] = []
     hints: list[str] = []
+    time_limit_ms: int | None = None
+    memory_limit_mb: int | None = 64
+    input_constraints: str | None = None
+    time_complexity: str | None = None
 
 
 class BatchImportRequest(BaseModel):
@@ -147,6 +151,20 @@ def _save_problem_to_db(db, problem_data: dict, visible_tests: list, hidden_test
             "sort_order": 50,
         }).execute()
 
+    # Clear old test results (foreign key to test_cases) then old test cases
+    try:
+        existing_tc = (
+            db.table("test_cases")
+            .select("id")
+            .eq("challenge_id", c_uuid)
+            .execute()
+        )
+        tc_ids = [row["id"] for row in (existing_tc.data or [])]
+        if tc_ids:
+            db.table("test_results").delete().in_("test_case_id", tc_ids).execute()
+    except Exception:
+        pass
+
     # Clear old test cases for this challenge
     try:
         db.table("test_cases").delete().eq("challenge_id", c_uuid).execute()
@@ -155,6 +173,7 @@ def _save_problem_to_db(db, problem_data: dict, visible_tests: list, hidden_test
 
     # Insert visible test cases
     db_tests = []
+    tl_ms = problem_data.get("time_limit_ms", 1500)
     for i, vt in enumerate(visible_tests, start=1):
         call_str = vt.get("call") or ""
         db_tests.append({
@@ -165,7 +184,7 @@ def _save_problem_to_db(db, problem_data: dict, visible_tests: list, hidden_test
             "input_payload": {"call": call_str},
             "expected_output": vt.get("expected", ""),
             "description": vt.get("description") or f"Visible test {i}",
-            "timeout_ms": 1500,
+            "timeout_ms": tl_ms,
         })
 
     # Insert hidden edge cases
@@ -179,7 +198,7 @@ def _save_problem_to_db(db, problem_data: dict, visible_tests: list, hidden_test
             "input_payload": {"call": call_str},
             "expected_output": ht.get("expected", ""),
             "description": ht.get("description") or f"Edge case {j}",
-            "timeout_ms": 1500,
+            "timeout_ms": tl_ms,
         })
 
     if db_tests:
@@ -292,7 +311,13 @@ async def batch_import_sheet(body: BatchImportRequest, db=Depends(get_supabase))
                 {"test": 1, "call": p["example"]["call"], "expected": p["example"]["expected"], "description": "Example 1", "visibility": "visible"}
             ]
 
-        res = _save_problem_to_db(db, p, visible, hidden, hints)
+        problem_data = dict(p)
+        problem_data["time_limit_ms"] = p.get("time_limit_ms")
+        problem_data["memory_limit_mb"] = p.get("memory_limit_mb")
+        problem_data["input_constraints"] = p.get("input_constraints")
+        problem_data["time_complexity"] = p.get("time_complexity")
+
+        res = _save_problem_to_db(db, problem_data, visible, hidden, hints)
         results.append(res)
 
     return {

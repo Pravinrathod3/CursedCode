@@ -40,3 +40,4 @@ class SubmitResponse(BaseModel):
     mistake_tags: list[str] = []
     explanation: str | None = None
     limit: str | None = None
+    automatic_hint: dict | None = None

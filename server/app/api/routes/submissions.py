@@ -9,6 +9,7 @@ from app.repositories.learners_repo import LearnersRepo
 from app.integrations.runner_client import run_code
 from app.schemas.submission import SubmitRequest, SubmitResponse, VisibleResult, HiddenResult
 from app.core.logging import get_logger
+from app.services.hint_generator import generate_dynamic_hint, generate_explanation
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/submit", tags=["submissions"])
@@ -208,14 +209,58 @@ async def submit(body: SubmitRequest, db=Depends(get_db)):
         },
     )
 
-    # Explanation text according to rules.md copy specifications
-    failed_count = (visible_total - visible_passed) + (hidden_total - hidden_passed)
-    total_count = visible_total + hidden_total
-    if overall_passed:
-        explanation = "All tests passed with no hints. Nice work."
+    # Explanation text: LLM-generated for wrong submissions; generic fallback otherwise.
+    explanation = "All tests passed with no hints. Nice work."
+    automatic_hint = None
+    if not overall_passed and not limit_hit:
+        # Build challenge dict for hint/explanation generation
+        challenge = {
+            "title": challenge.get("title", "the challenge"),
+            "statement": challenge.get("statement", ""),
+            "slug": challenge.get("slug", body.challenge_id),
+            "function_signature": challenge.get("function_signature", ""),
+        }
+        # LLM-generated explanation naming the specific failure cause
+        explanation = await generate_explanation(
+            challenge=challenge,
+            source_code=body.code,
+            mistake_tags=mistake_tags,
+            visible_results=visible_results,
+        )
+        # Automatic level 1 hint (given without user requesting it)
+        try:
+            auto_hint_text, _ = await generate_dynamic_hint(
+                challenge=challenge,
+                source_code=body.code,
+                mistake_tags=mistake_tags,
+                visible_results=visible_results,
+                hint_level=1,
+                prior_hints=[],
+            )
+            automatic_hint = {
+                "level": 1,
+                "hint": auto_hint_text,
+                "hint_index": 1,
+                "remaining": 3,
+            }
+        except Exception as exc:
+            logger.warning("Automatic hint generation failed: %s", exc)
+            automatic_hint = {
+                "level": 1,
+                "hint": "Trace your code step-by-step with the first visible test case.",
+                "hint_index": 1,
+                "remaining": 3,
+            }
+        # Record that a hint was given so mastery weighting accounts for it
+        try:
+            db.table("submissions").update({"hints_requested": 1}).eq("id", sub_uuid).execute()
+        except Exception as exc:
+            logger.warning("Could not update hints_requested: %s", exc)
     elif limit_hit:
         explanation = f"Execution stopped: {limit_hit} limit exceeded. Protect against unbounded resources."
     else:
+        failed_count = (visible_total - visible_passed) + (hidden_total - hidden_passed)
+        total_count = visible_total + hidden_total
         explanation = f"{failed_count} of {total_count} tests failed. Read what went wrong, then try again."
 
     return SubmitResponse(
@@ -227,4 +272,5 @@ async def submit(body: SubmitRequest, db=Depends(get_db)):
         mistake_tags=mistake_tags,
         explanation=explanation,
         limit=limit_hit,
+        automatic_hint=automatic_hint,
     )
