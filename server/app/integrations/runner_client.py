@@ -307,10 +307,12 @@ def _run_single_local(full_source: str, expected_raw: any, timeout: float) -> di
         }
 
 
-async def _run_one_test_judge0(client, base_url, headers, source_code, call, expected, timeout):
+async def _run_one_test_judge0(client, base_url, headers, source_code, call, expected, timeout_ms):
     """Run a single test case via Judge0."""
     full_source = _build_mutated_source(source_code, call)
     token = await _submit(client, base_url, headers, full_source)
+    # Convert timeout_ms to seconds for Judge0 polling deadline
+    timeout = float(timeout_ms) / 1000.0 if timeout_ms else None
     result = await _poll(client, base_url, headers, token, timeout)
     outcome = result["outcome"]
     actual_output = result.get("actual_output")
@@ -326,7 +328,7 @@ async def _run_one_test_judge0(client, base_url, headers, source_code, call, exp
     }
 
 
-async def _execute_local_fallback(source_code: str, test_cases: list[dict], timeout: float) -> list[dict]:
+async def _execute_local_fallback(source_code: str, test_cases: list[dict], default_timeout: float) -> list[dict]:
     # Fast syntax check
     try:
         ast.parse(source_code)
@@ -348,8 +350,11 @@ async def _execute_local_fallback(source_code: str, test_cases: list[dict], time
         call = _get_call_from_testcase(tc)
         full_source = _build_mutated_source(source_code, call)
         expected = tc.get("expected_output", "")
+        # Use per-test-case timeout_ms, fallback to default timeout
+        tc_timeout_ms = tc.get("timeout_ms")
+        tc_timeout = float(tc_timeout_ms) / 1000.0 if tc_timeout_ms else default_timeout
 
-        res = await asyncio.to_thread(_run_single_local, full_source, expected, timeout)
+        res = await asyncio.to_thread(_run_single_local, full_source, expected, tc_timeout)
         results.append({
             "test_case_id": tc["id"],
             "visibility": tc["visibility"],
@@ -370,12 +375,12 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
     settings = get_settings()
     base_url = settings.runner_base_url.rstrip("/")
     api_key = settings.runner_api_key
-    timeout = settings.runner_timeout_seconds
+    default_timeout = settings.runner_timeout_seconds
     mem_limit = int(settings.runner_memory_limit_mb)
 
     if not api_key:
         logger.info("Judge0 API key not configured; using local runner fallback")
-        return await _execute_local_fallback(source_code, test_cases, float(timeout))
+        return await _execute_local_fallback(source_code, test_cases, default_timeout)
 
     # Build the mutated-source variant once per call_expr.
     prepared = []
@@ -396,10 +401,11 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
             "X-RapidAPI-Host": host,
         }
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(timeout=default_timeout) as client:
                 for tc, call, expected in prepared:
+                    tc_timeout_ms = tc.get("timeout_ms")
                     result = await _run_one_test_judge0(
-                        client, base_url, headers, source_code, call, expected, timeout
+                        client, base_url, headers, source_code, call, expected, tc_timeout_ms
                     )
                     results.append({
                         "test_case_id": tc["id"],
@@ -420,7 +426,7 @@ async def run_code(source_code: str, test_cases: list[dict]) -> list[dict]:
     # --- Local sandbox fallback (never runs unsandboxed) ---
     if not judge0_available:
         logger.info("Using local sandboxed subprocess runner.")
-        return await _execute_local_fallback(source_code, test_cases, float(timeout))
+        return await _execute_local_fallback(source_code, test_cases, default_timeout)
 
     return results
 

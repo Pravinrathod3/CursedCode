@@ -13,6 +13,10 @@ SEED_CHALLENGES = [
         "difficulty": "Easy",
         "tags": ["Lists", "Slicing"],
         "estimatedTime": "10 min",
+        "time_limit_ms": 500,
+        "memory_limit_mb": 64,
+        "input_constraints": "0 ≤ len(numbers) ≤ 10⁵; -10⁹ ≤ numbers[i] ≤ 10⁹; 0 ≤ k ≤ len(numbers)",
+        "time_complexity": "O(k)",
         "starterCode": "def last_k_total(numbers, k):\n    # Return the total of the last k values in numbers.\n    if k == 0:\n        return 0\n    return sum(numbers[-k:])\n",
         "example": {
             "call": "last_k_total([3, 8, 2, 5], 2)",
@@ -47,6 +51,10 @@ SEED_CHALLENGES = [
         "difficulty": "Easy",
         "tags": ["Loops", "Comparison"],
         "estimatedTime": "10 min",
+        "time_limit_ms": 500,
+        "memory_limit_mb": 64,
+        "input_constraints": "0 ≤ len(marks) ≤ 10⁵; -10⁹ ≤ marks[i] ≤ 10⁹",
+        "time_complexity": "O(n)",
         "starterCode": "def count_passes(marks):\n    # Count marks that are 40 or more\n    count = 0\n    for mark in marks:\n        if mark >= 40:\n            count += 1\n    return count\n",
         "example": {
             "call": "count_passes([30, 40, 50])",
@@ -82,6 +90,10 @@ SEED_CHALLENGES = [
         "difficulty": "Easy",
         "tags": ["Loops", "Lists"],
         "estimatedTime": "10 min",
+        "time_limit_ms": 300,
+        "memory_limit_mb": 64,
+        "input_constraints": "0 ≤ n ≤ 10⁵",
+        "time_complexity": "O(n)",
         "starterCode": "def first_n_squares(n):\n    # Build list of squares from 1 up to n\n    return [i * i for i in range(1, n + 1)]\n",
         "example": {
             "call": "first_n_squares(4)",
@@ -116,6 +128,10 @@ SEED_CHALLENGES = [
         "difficulty": "Medium",
         "tags": ["Lists", "Indexing"],
         "estimatedTime": "15 min",
+        "time_limit_ms": 500,
+        "memory_limit_mb": 64,
+        "input_constraints": "3 ≤ len(items) ≤ 10⁵; len(items) is always odd",
+        "time_complexity": "O(1)",
         "starterCode": "def middle_three(items):\n    # Return the three middle items of an odd-length list\n    mid = len(items) // 2\n    return items[mid - 1 : mid + 2]\n",
         "example": {
             "call": "middle_three([1, 2, 3, 4, 5])",
