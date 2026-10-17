@@ -401,17 +401,6 @@ export default function ImportSheetPage({ onNavigate, learnerName = 'zeroeight' 
                       </div>
 
                       <div className="importer-problem-actions">
-                        <button
-                          type="button"
-                          className="secondary-btn importer-btn"
-                          onClick={() => handlePreviewEdgeCases(p)}
-                          disabled={isGeneratingTests && isPreviewing}
-                        >
-                          {isGeneratingTests && isPreviewing
-                            ? '⚡ Generating Edge Cases…'
-                            : (gen ? (isPreviewing ? 'Hide Edge Cases' : 'View Edge Cases') : '⚡ Preview Edge Cases (AI)')}
-                        </button>
-
                         {isImported ? (
                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <span className="importer-success-stamp">✓ IN JUDGE</span>
