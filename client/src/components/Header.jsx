@@ -2,6 +2,7 @@ export default function Header({ currentPath, onNavigate, learnerName = 'zeroeig
   const isChallengesActive = currentPath === '/challenges' || currentPath.startsWith('/challenges/');
   const isProgressActive = currentPath === '/progress';
   const isMilestonesActive = currentPath === '/milestones';
+  const isImportActive = currentPath === '/import';
 
   return (
     <header className="site-header">
@@ -36,6 +37,15 @@ export default function Header({ currentPath, onNavigate, learnerName = 'zeroeig
             aria-current={isChallengesActive ? 'page' : undefined}
           >
             Challenges
+          </button>
+          <button
+            type="button"
+            className={`nav-link ${isImportActive ? 'nav-link--active' : ''}`}
+            onClick={() => onNavigate('/import')}
+            aria-current={isImportActive ? 'page' : undefined}
+          >
+            <span>Import Sheets</span>
+            <span className="nav-pill-badge">AI</span>
           </button>
           <button
             type="button"

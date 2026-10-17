@@ -1,6 +1,6 @@
 @echo off
-REM One-command startup script for Debug Dojo (DI-01) on Windows
-echo === Starting Debug Dojo (DI-01) ===
+REM One-command startup script for CursedCode on Windows
+echo === Starting CursedCode ===
 
 REM 1. Start go-judge daemon on Windows if present
 if exist "server\bin\go-judge.exe" (
@@ -11,13 +11,13 @@ if exist "server\bin\go-judge.exe" (
 REM 2. Start FastAPI server
 echo Starting FastAPI server on port 8000...
 cd server
-start "Debug Dojo Backend" cmd /k ".venv\Scripts\uvicorn.exe app.main:app --host 0.0.0.0 --port 8000"
+start "CursedCode Backend" cmd /k ".venv\Scripts\uvicorn.exe app.main:app --host 0.0.0.0 --port 8000"
 cd ..
 
 REM 3. Start Vite frontend
 echo Starting Vite client on port 5173...
 cd client
-start "Debug Dojo Client" cmd /k "npm run dev -- --host 0.0.0.0 --port 5173"
+start "CursedCode Client" cmd /k "npm run dev -- --host 0.0.0.0 --port 5173"
 cd ..
 
 echo === All services launched ===

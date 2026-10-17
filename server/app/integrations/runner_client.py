@@ -119,6 +119,18 @@ def _build_mutated_source(source_code: str, call_str: str) -> str:
     return "\n".join(preamble)
 
 
+def _get_call_from_testcase(tc: dict) -> str:
+    """Extract callable python string from testcase dict."""
+    payload = tc.get("input_payload") or {}
+    if isinstance(payload, dict) and "call" in payload:
+        return payload["call"]
+    if tc.get("call"):
+        return tc["call"]
+    if tc.get("description") and "(" in str(tc["description"]):
+        return tc["description"]
+    return str(payload)
+
+
 def _parse_mutated_output(stdout: str) -> tuple:
     """Parse runner stdout to extract (actual_output, mutated_flag)."""
     actual = None

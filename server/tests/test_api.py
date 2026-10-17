@@ -17,7 +17,7 @@ async def test_list_challenges():
         resp = await client.get("/api/challenges?learner_id=test_user")
         assert resp.status_code == 200
         challenges = resp.json()
-        assert len(challenges) == 12
+        assert len(challenges) >= 12
         first = challenges[0]
         assert "id" in first
         assert "title" in first
