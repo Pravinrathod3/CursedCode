@@ -30,30 +30,30 @@ export const CHALLENGES = [
   {
     id: 'countpasses',
     title: 'Count Passes',
-    description: 'Count the number of test scores that meet or exceed a passing mark.',
-    statement: 'Write a function named `count_passes(scores, passing_mark)` that takes a list of integer `scores` and a threshold `passing_mark`. Return the count of scores that are greater than or equal to `passing_mark`.',
+    description: 'Count the number of test scores that are 40 or more.',
+    statement: 'Write a function named `count_passes(marks)` that takes a list of integer `marks` and returns how many of them are 40 or more.',
     grade: 'Grade 4',
     difficulty: 'Easy',
     tags: ['Loops', 'Comparison'],
     status: 'Attempted',
     estimatedTime: '10 min',
-    starterCode: `def count_passes(scores, passing_mark):
-    # Count scores meeting or exceeding passing_mark
+    starterCode: `def count_passes(marks):
+    # Count marks that are 40 or more
     count = 0
-    for score in scores:
-        if score >= passing_mark:
+    for mark in marks:
+        if mark >= 40:
             count += 1
     return count
 `,
     example: {
-      call: 'count_passes([45, 80, 92, 58, 60], 60)',
-      expected: '3',
-      explanation: 'Scores 80, 92, and 60 meet or exceed 60.'
+      call: 'count_passes([30, 40, 50])',
+      expected: '2',
+      explanation: 'Marks 40 and 50 are 40 or more, so the count is 2.'
     },
     visibleTests: [
-      { test: 1, call: 'count_passes([45, 80, 92, 58, 60], 60)', expected: '3' },
-      { test: 2, call: 'count_passes([10, 20, 30], 50)', expected: '0' },
-      { test: 3, call: 'count_passes([70, 70, 70], 70)', expected: '3' }
+      { test: 1, call: 'count_passes([30, 40, 50])', expected: '2' },
+      { test: 2, call: 'count_passes([10, 20, 30])', expected: '0' },
+      { test: 3, call: 'count_passes([40, 40, 40])', expected: '3' }
     ],
     hiddenTestCount: 5
   },
