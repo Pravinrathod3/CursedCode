@@ -1,11 +1,11 @@
 #!/bin/bash
-# One-command startup script for Debug Dojo (DI-01)
+# One-command startup script for CursedCode
 set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
 
-echo "=== Starting Debug Dojo (DI-01) ==="
+echo "=== Starting CursedCode ==="
 
 # 1. Start go-judge sandbox daemon if binary is present
 if [ -f "./server/bin/go-judge" ]; then
