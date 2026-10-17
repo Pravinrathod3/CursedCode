@@ -308,9 +308,9 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
   };
 
   // Compute test tallies
-  const visibleTotal = challenge.visibleTests ? challenge.visibleTests.length : 0;
+  const visibleTotal = visibleResults.length || (challenge.visibleTests ? challenge.visibleTests.length : 0);
   const visiblePassed = visibleResults.filter((r) => r.outcome === 'passed').length;
-  const hiddenTotal = challenge.hiddenTestCount || (hiddenResults.length ? hiddenResults.length : 5);
+  const hiddenTotal = hiddenResults.length || (challenge.hiddenTestCount || 5);
   const hiddenPassed = hiddenResults.filter((r) => r.outcome === 'passed').length;
   const allPassed = hasRun && (visiblePassed === visibleTotal && hiddenPassed === hiddenTotal);
   const hasFailedTests = hasRun && !allPassed;
