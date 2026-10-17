@@ -1,8 +1,15 @@
+import { useTheme } from '../context/ThemeContext.jsx';
+
 export default function Header({ currentPath, onNavigate, learnerName = 'zeroeight' }) {
+  const { isLight, toggleTheme } = useTheme();
   const isChallengesActive = currentPath === '/challenges' || currentPath.startsWith('/challenges/');
   const isProgressActive = currentPath === '/progress';
   const isMilestonesActive = currentPath === '/milestones';
   const isImportActive = currentPath === '/import';
+
+  const logoSrc = isLight
+    ? '/assets/brand/brand_logo_wordmark_light.png'
+    : '/assets/brand/brand_logo_wordmark.png';
 
   return (
     <header className="site-header">
@@ -14,7 +21,8 @@ export default function Header({ currentPath, onNavigate, learnerName = 'zeroeig
           aria-label="cursedCode Home"
         >
           <img
-            src="/assets/brand/brand_logo_wordmark.png"
+            key={logoSrc}
+            src={logoSrc}
             alt="cursedCode"
             className="brand-logo__img"
             onError={(e) => {
@@ -65,10 +73,24 @@ export default function Header({ currentPath, onNavigate, learnerName = 'zeroeig
           </button>
         </nav>
 
-        <div className="site-header__learner" title="Pseudonymous learner identifier">
-          <span className="learner-dot" aria-hidden="true">●</span>
-          <span className="learner-label">Learner:</span>
-          <span className="learner-name">{learnerName}</span>
+        <div className="site-header__controls">
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${isLight ? 'Dark Domain' : 'Light Domain'} mode`}
+            title={`Current: ${isLight ? 'Light Domain (#00E3FF)' : 'Dark Domain (Sukuna)'}. Click to switch.`}
+          >
+            <span className="theme-toggle-icon" aria-hidden="true">{isLight ? '🌙' : '☀️'}</span>
+            <span className="theme-toggle-text">{isLight ? 'DARK' : 'LIGHT'}</span>
+          </button>
+
+          <div className="site-header__learner" title="Pseudonymous learner identifier">
+            <span className="learner-dot" aria-hidden="true">●</span>
+            <span className="learner-label">Learner:</span>
+            <span className="learner-name">{learnerName}</span>
+          </div>
         </div>
       </div>
     </header>
