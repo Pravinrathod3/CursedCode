@@ -4,6 +4,7 @@ import Footer from '../components/Footer.jsx';
 import GradeBadge from '../components/GradeBadge.jsx';
 import { CHALLENGES } from '../data/challenges.js';
 import { getChallenge, submitCode, getHint } from '../services/api.js';
+import botAvatarImg from '../assets/hint_bot.webp';
 
 function formatOutcome(outcome) {
   switch (outcome) {
@@ -461,7 +462,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                   }}
                 >
                   <div className="bot-station-avatar-wrap">
-                    <span className="bot-station-avatar-emoji">🤖</span>
+                    <img src={botAvatarImg} alt="Bot Avatar" className="bot-station-img" />
                     <span className="bot-station-avatar-beacon" />
                   </div>
                   <div className="bot-station-info">
@@ -560,7 +561,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                     }}
                     title={botActive ? "Dock bot back" : (hasFailedTests ? `Hover bot to error line ${suspectErrorLine}` : `Hover bot to line ${activeLine}`)}
                   >
-                    <span className="bot-quick-emoji">🤖</span>
+                    <img src={botAvatarImg} alt="Bot" className="bot-quick-img" />
                     <span>
                       {botActive
                         ? `DISMISS (LN ${targetLine})`
@@ -632,7 +633,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                     <div
                       className={`editor-floating-bot ${botMode === 'error' ? 'editor-floating-bot--error' : 'editor-floating-bot--hint'}`}
                       style={{
-                        top: `${Math.max(10, (targetLine - 1) * 24 + 14 - scrollTop)}px`
+                        top: `${Math.max(6, (targetLine - 1) * 24 + 14 - 12 - scrollTop)}px`
                       }}
                     >
                       <div
@@ -640,8 +641,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                         onClick={() => setBotActive(false)}
                         title="Click to dismiss bot"
                       >
-                        <span className="floating-bot-emoji">🤖</span>
-                        <span className="floating-bot-pulse" />
+                        <img src={botAvatarImg} alt="Cursed Shikigami Bot" className="floating-bot-img" />
                       </div>
 
                       <div className="bot-speech-bubble" role="dialog" aria-label="Bot diagnostic speech bubble">
