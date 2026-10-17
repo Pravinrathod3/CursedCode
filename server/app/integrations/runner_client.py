@@ -333,7 +333,7 @@ async def _execute_local_fallback(source_code: str, test_cases: list[dict], time
 
     results = []
     for tc in test_cases:
-        call = (tc.get("input_payload") or {}).get("call", "") or tc.get("description", "")
+        call = _get_call_from_testcase(tc)
         full_source = _build_mutated_source(source_code, call)
         expected = tc.get("expected_output", "")
 

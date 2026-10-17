@@ -306,6 +306,13 @@ class TableQuery:
             self.filters.append((field, "=", value))
         return self
 
+    def in_(self, field: str, values: list):
+        if not values:
+            self.filters.append((field, "IN ()", []))
+        else:
+            self.filters.append((field, f"IN ({','.join(['?']*len(values))})", list(values)))
+        return self
+
     def order(self, field: str, desc: bool = False):
         self.order_by_clause = f"{field} {'DESC' if desc else 'ASC'}"
         return self
@@ -328,6 +335,11 @@ class TableQuery:
         for field, op, val in self.filters:
             if op == "IS NULL":
                 where_parts.append(f"{field} IS NULL")
+            elif op == "IN ()":
+                where_parts.append("1=0")
+            elif op.startswith("IN ("):
+                where_parts.append(f"{field} {op}")
+                params.extend(val)
             else:
                 where_parts.append(f"{field} = ?")
                 params.append(val)
@@ -354,6 +366,25 @@ class TableQuery:
                     "mastery_score": r["mastery_score"],
                     "concept_id": r["concept_id"],
                     "concepts": {"slug": r["slug"], "name": r["name"]}
+                }
+                for r in rows
+            ]
+            conn.close()
+            return QueryResult(data)
+
+        if "mistake_categories(" in clean_select:
+            query = f"""
+                SELECT sm.submission_id, mc.slug
+                FROM submission_mistakes sm
+                JOIN mistake_categories mc ON sm.mistake_category_id = mc.id
+                {where_clause.replace('submission_id', 'sm.submission_id')}
+            """
+            cur.execute(query, params)
+            rows = [dict(r) for r in cur.fetchall()]
+            data = [
+                {
+                    "submission_id": r["submission_id"],
+                    "mistake_categories": {"slug": r["slug"]}
                 }
                 for r in rows
             ]
