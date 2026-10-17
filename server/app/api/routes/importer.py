@@ -135,12 +135,6 @@ def _save_problem_to_db(db, problem_data: dict, visible_tests: list, hidden_test
             "starter_code": problem_data.get("starter_code", ""),
             "difficulty": db_diff,
             "is_published": True,
-            "constraints": {
-                "time_limit_ms": problem_data.get("time_limit_ms"),
-                "memory_limit_mb": problem_data.get("memory_limit_mb"),
-                "input_constraints": problem_data.get("input_constraints"),
-                "time_complexity": problem_data.get("time_complexity"),
-            },
         }).eq("id", c_uuid).execute()
     else:
         c_uuid = str(uuid.uuid4())
@@ -155,12 +149,6 @@ def _save_problem_to_db(db, problem_data: dict, visible_tests: list, hidden_test
             "language": "python",
             "is_published": True,
             "sort_order": 50,
-            "constraints": {
-                "time_limit_ms": problem_data.get("time_limit_ms"),
-                "memory_limit_mb": problem_data.get("memory_limit_mb"),
-                "input_constraints": problem_data.get("input_constraints"),
-                "time_complexity": problem_data.get("time_complexity"),
-            },
         }).execute()
 
     # Clear old test results (foreign key to test_cases) then old test cases
