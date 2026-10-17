@@ -33,9 +33,9 @@ SEED_CHALLENGES = [
         ],
         "hints": [
             "Check what happens when k is 0. Python's slice `numbers[-0:]` will take the entire list from index 0!",
-            "Consider slicing with negative indices `numbers[-k:]` only when k > 0.",
+            "How can you make sure your slice start index never goes below zero when k is larger than the list length?",
             "Make sure you handle cases where k is greater than the length of the list.",
-            "Use `numbers[-k:] if k > 0 else []` to safely slice the last k elements, then return `sum(...)`."
+            "What single value should you compare k against before slicing, so that short lists never cause an IndexError?"
         ]
     },
     {
@@ -69,8 +69,8 @@ SEED_CHALLENGES = [
         "hints": [
             "Check the boundary: does a mark exactly equal to 40 count?",
             "Remember '40 or more' means use `>=`, not `>`.",
-            "Start your counter at 0 before the loop, then return it after the loop ends.",
-            "Loop through each mark with `for mark in marks:` and check `if mark >= 40:`."
+            "How do you accumulate a running total across all items in a list?",
+            "What should your function return after examining every mark in the list?"
         ]
     },
     {
@@ -104,7 +104,7 @@ SEED_CHALLENGES = [
             "Remember that range in Python is exclusive at the stop index.",
             "To include n, your range stop value must be n + 1.",
             "If n is 0 or negative, the result should be an empty list [].",
-            "A list comprehension `[i ** 2 for i in range(1, n + 1)]` handles all cases cleanly."
+            "What one-liner builds a list of squares from 1 up to n using range and squaring each value?"
         ]
     },
     {
@@ -137,8 +137,8 @@ SEED_CHALLENGES = [
         "hints": [
             "Find the middle index using integer division: `mid = len(items) // 2`.",
             "The element directly before the center is at `mid - 1`, and the element after is at `mid + 1`.",
-            "Remember that slice end index is exclusive in Python, so `mid + 2` includes `mid + 1`.",
-            "Return `items[mid - 1 : mid + 2]`."
+            "Remember that slice end index is exclusive in Python.",
+            "What slice starting at `mid - 1` and ending two positions past the center gives you exactly three items?"
         ]
     },
     {
@@ -172,7 +172,7 @@ SEED_CHALLENGES = [
             "Python strings have built-in methods `.startswith()` and `.endswith()`.",
             "Make sure the check is case-sensitive as requested.",
             "Combine both conditions using the logical `or` operator.",
-            "`return sentence.startswith(keyword) or sentence.endswith(keyword)` covers all edge cases."
+            "Which two string methods should you call to check if the sentence begins with OR concludes with the keyword?"
         ]
     },
     {
@@ -239,7 +239,7 @@ SEED_CHALLENGES = [
         "hints": [
             "Ignore non-alphanumeric characters (spaces, punctuation) using `.isalnum()`.",
             "Convert all characters to lowercase using `.lower()` before checking.",
-            "Compare the cleaned string with its reverse `cleaned[::-1]`.",
+            "What is the simplest way to test if a cleaned string reads the same in reverse?",
             "An empty string is trivially a palindrome and should return `True`."
         ]
     },
@@ -342,7 +342,7 @@ SEED_CHALLENGES = [
             "Use a stack (a Python list with `.append()` and `.pop()`).",
             "When encountering an opening bracket, push it onto the stack.",
             "When encountering a closing bracket, check if the stack is non-empty and the top matches.",
-            "At the end of the string, the stack must be completely empty: `return len(stack) == 0`."
+            "What condition must hold for all brackets to be considered properly matched and nested?"
         ]
     },
     {
