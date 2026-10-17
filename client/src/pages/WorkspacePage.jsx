@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import GradeBadge from '../components/GradeBadge.jsx';
@@ -35,6 +35,124 @@ function getOutcomeIcon(outcome) {
   }
 }
 
+function detectSuspectLine(codeText, mistakeTags = [], visibleResults = [], explanation = '') {
+  const lines = (codeText || '').split('\n');
+  if (lines.length <= 1) return 1;
+
+  // 1. Try to find explicit line number from explanation or traceback
+  const lineMatch = (explanation || '').match(/line\s+(\d+)/i);
+  if (lineMatch) {
+    const parsed = parseInt(lineMatch[1], 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= lines.length) {
+      return parsed;
+    }
+  }
+
+  // 2. Check mistake tags
+  if (mistakeTags.includes('print_not_return')) {
+    const printIdx = lines.findIndex((l) => /print\s*\(/.test(l));
+    if (printIdx !== -1) return printIdx + 1;
+  }
+
+  if (mistakeTags.includes('mutates_input')) {
+    const mutIdx = lines.findIndex((l) => /\.(sort|append|extend|insert|remove|pop|clear|reverse)\s*\(|del\s+/.test(l));
+    if (mutIdx !== -1) return mutIdx + 1;
+  }
+
+  if (mistakeTags.includes('unhandled_short_input')) {
+    const sliceIdx = lines.findIndex((l) => /\[.*\]/.test(l) && !l.trim().startsWith('def '));
+    if (sliceIdx !== -1) return sliceIdx + 1;
+  }
+
+  if (mistakeTags.includes('boundary_comparison') || mistakeTags.includes('off_by_one')) {
+    const loopOrCompIdx = lines.findIndex((l) => /(for|while|if)\s+.*(range|<=|>=|<|>|==)/.test(l));
+    if (loopOrCompIdx !== -1) return loopOrCompIdx + 1;
+  }
+
+  // 3. Check for return statement
+  const returnIdx = lines.findIndex((l) => /^\s*return\b/.test(l));
+  if (returnIdx !== -1) return returnIdx + 1;
+
+  // 4. Default to line 2 (first line of function body) if exists
+  return lines.length > 1 ? 2 : 1;
+}
+
+function getNaturalLanguageDiagnostic({ mistakeTags, visibleResults, explanation, targetLine, codeText }) {
+  const lines = (codeText || '').split('\n');
+  const codeLine = lines[targetLine - 1] || '';
+  const failedTest = (visibleResults || []).find((r) => r.outcome && r.outcome !== 'passed');
+
+  if (failedTest?.outcome === 'runtime_error') {
+    return {
+      title: 'RUNTIME ERROR',
+      intro: 'There is something wrong here...',
+      detail: 'A runtime error occurred when executing this line or block. Check for variable naming typos, missing attributes, or invalid type operations.',
+      lineSnippet: codeLine
+    };
+  }
+
+  if (failedTest?.outcome === 'timeout') {
+    return {
+      title: 'TIMEOUT / LOOP DETECTED',
+      intro: 'There is something wrong here...',
+      detail: 'Execution timed out. Check if a loop or condition on this line fails to terminate or update its state.',
+      lineSnippet: codeLine
+    };
+  }
+
+  if (mistakeTags.includes('print_not_return')) {
+    return {
+      title: 'PRINT VS RETURN',
+      intro: 'There is something wrong here...',
+      detail: 'Your function appears to be printing the output instead of returning it. The evaluator checks the returned value.',
+      lineSnippet: codeLine
+    };
+  }
+
+  if (mistakeTags.includes('mutates_input')) {
+    return {
+      title: 'MUTATED INPUT ARGUMENT',
+      intro: 'There is something wrong here...',
+      detail: 'This line mutates the input argument directly. In algorithmic challenges, avoid modifying the caller\'s original collection unless asked.',
+      lineSnippet: codeLine
+    };
+  }
+
+  if (mistakeTags.includes('unhandled_short_input')) {
+    return {
+      title: 'UNHANDLED EDGE CASE',
+      intro: 'There is something wrong here...',
+      detail: 'This code seems to stumble on short or boundary inputs (like an empty list or single element). Add a guard condition before indexing.',
+      lineSnippet: codeLine
+    };
+  }
+
+  if (mistakeTags.includes('boundary_comparison') || mistakeTags.includes('off_by_one')) {
+    return {
+      title: 'BOUNDARY CHECK / OFF BY ONE',
+      intro: 'There is something wrong here...',
+      detail: 'The boundary comparison or loop range condition seems slightly off here. Verify if it should be inclusive or exclusive (e.g. < vs <=).',
+      lineSnippet: codeLine
+    };
+  }
+
+  if (failedTest && failedTest.got !== undefined && failedTest.expected !== undefined) {
+    return {
+      title: 'OUTPUT DISCREPANCY',
+      intro: 'There is something wrong here...',
+      detail: `Your code returned "${failedTest.got}" instead of "${failedTest.expected}" on test call "${failedTest.call || 'input'}". Re-check this line's computation.`,
+      lineSnippet: codeLine
+    };
+  }
+
+  return {
+    title: 'LOGICAL DISCREPANCY',
+    intro: 'There is something wrong here...',
+    detail: explanation || 'The test runner encountered an unexpected result. Check your logic and variable updates on this line.',
+    lineSnippet: codeLine
+  };
+}
+
 export default function WorkspacePage({ challengeId, onNavigate, learnerName }) {
   const initialChallenge = CHALLENGES.find((c) => c.id === challengeId) || CHALLENGES[0];
   const [challenge, setChallenge] = useState(initialChallenge);
@@ -60,6 +178,16 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
   const [isFetchingHint, setIsFetchingHint] = useState(false);
   const [remainingHints, setRemainingHints] = useState(4);
 
+  // Line tracking and floating bot state
+  const [activeLine, setActiveLine] = useState(1);
+  const [targetLine, setTargetLine] = useState(1);
+  const [botActive, setBotActive] = useState(false);
+  const [botMode, setBotMode] = useState('hint'); // 'hint' | 'error'
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const textareaRef = useRef(null);
+  const gutterRef = useRef(null);
+
   // Fetch challenge details from backend
   useEffect(() => {
     let active = true;
@@ -75,6 +203,10 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
         setHiddenResults([]);
         setRevealedHints([]);
         setRemainingHints(4);
+        setBotActive(false);
+        setActiveLine(1);
+        setTargetLine(1);
+        setScrollTop(0);
         setSandboxStatus('Sandbox ready');
         setSelectedCaseIndex(0);
         setExplanation('');
@@ -142,6 +274,63 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
   const hiddenTotal = challenge.hiddenTestCount || (hiddenResults.length ? hiddenResults.length : 5);
   const hiddenPassed = hiddenResults.filter((r) => r.outcome === 'passed').length;
   const allPassed = hasRun && (visiblePassed === visibleTotal && hiddenPassed === hiddenTotal);
+  const hasFailedTests = hasRun && !allPassed;
+
+  // Diagnostic calculations
+  const suspectErrorLine = detectSuspectLine(code, mistakeTags, visibleResults, explanation);
+  const botDiagnostic = getNaturalLanguageDiagnostic({
+    mistakeTags,
+    visibleResults,
+    explanation,
+    targetLine,
+    codeText: code,
+  });
+
+  const latestHint = revealedHints.length > 0 ? revealedHints[revealedHints.length - 1] : null;
+  const codeLines = code.split('\n');
+  const lineCount = Math.max(1, codeLines.length);
+
+  // Deploy bot: animate to error line or active line
+  const handleDeployBot = (forcedMode) => {
+    const mode = forcedMode || (hasFailedTests ? 'error' : 'hint');
+    setBotMode(mode);
+
+    let target = 1;
+    if (mode === 'error') {
+      target = suspectErrorLine;
+    } else {
+      target = activeLine || (codeLines.length > 1 ? 2 : 1);
+      // Automatically unlock first hint if available and none unlocked yet
+      if (revealedHints.length === 0 && submissionId && !isFetchingHint) {
+        handleGetHint();
+      }
+    }
+
+    setTargetLine(target);
+    setBotActive(true);
+
+    // Smooth scroll the code editor so the target line and hovering bot are in view
+    if (textareaRef.current) {
+      const targetScrollTop = Math.max(0, (target - 1) * 24 - 80);
+      textareaRef.current.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+    }
+  };
+
+  const handleCursorChange = (e) => {
+    const el = e.target;
+    const pos = el.selectionStart || 0;
+    const linesBefore = el.value.substring(0, pos).split('\n');
+    const lineNum = Math.max(1, linesBefore.length);
+    setActiveLine(lineNum);
+  };
+
+  const handleScroll = (e) => {
+    const st = e.target.scrollTop;
+    setScrollTop(st);
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = st;
+    }
+  };
 
   // Inspector details for active visible test
   const visibleTestsList = challenge.visibleTests || [];
@@ -242,52 +431,107 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
               </article>
             )}
 
-            {/* Box 3: Hint Assistant Ladder */}
+            {/* Box 3: Interactive Hint Assistant Station */}
             <article className="schematic-card">
               <div className="schematic-card-header">
                 <h2 className="schematic-card-header__title">
                   <span aria-hidden="true">▶</span> [ HINT ASSISTANT ]
                 </h2>
                 <span className="schematic-card-header__tag">
-                  {revealedHints.length > 0 ? `[ HINT ${revealedHints.length}/4 UNLOCKED ]` : '[ BOT READY ]'}
+                  {botActive
+                    ? `[ HOVERING AT LN ${targetLine} ]`
+                    : hasFailedTests
+                    ? '[ ERROR SUSPECT DETECTED ]'
+                    : revealedHints.length > 0
+                    ? `[ HINT ${revealedHints.length}/4 UNLOCKED ]`
+                    : '[ READY ]'}
                 </span>
               </div>
-              <div className="schematic-bot-hint">
-                <div className="schematic-bot-avatar">
-                  <span aria-hidden="true">🤖</span>
-                  [ BOT ]
-                </div>
-                <div className="schematic-bot-content">
-                  {revealedHints.length === 0 ? (
-                    <p className="schematic-text" style={{ fontSize: '12.5px' }}>
-                      {hasRun
-                        ? 'Diagnostic guidance available. Ask the assistant to inspect your logical assumptions.'
-                        : 'Execute code in the sandbox to unlock progressive diagnostic hints.'}
-                    </p>
+
+              <div className="schematic-bot-station">
+                <button
+                  type="button"
+                  className={`bot-station-deploy-btn ${botActive ? 'bot-station-deploy-btn--active' : ''} ${hasFailedTests ? 'bot-station-deploy-btn--error' : ''}`}
+                  onClick={() => {
+                    if (botActive) {
+                      setBotActive(false);
+                    } else {
+                      handleDeployBot();
+                    }
+                  }}
+                >
+                  <div className="bot-station-avatar-wrap">
+                    <span className="bot-station-avatar-emoji">🤖</span>
+                    <span className="bot-station-avatar-beacon" />
+                  </div>
+                  <div className="bot-station-info">
+                    <span className="bot-station-title">
+                      {botActive
+                        ? `[ DISMISS BOT FROM LINE ${targetLine} ]`
+                        : hasFailedTests
+                        ? `[ ⚠ HOVER BOT TO ERROR LINE (${suspectErrorLine}) ]`
+                        : `[ 💡 HOVER BOT TO ACTIVE LINE (${activeLine}) ]`}
+                    </span>
+                    <span className="bot-station-subtitle">
+                      {botActive
+                        ? 'Click to dock assistant back to station'
+                        : hasFailedTests
+                        ? 'Inspect failure: Hover bot to the suspect error line'
+                        : 'Deploy assistant to cursor line for step-by-step guidance'}
+                    </span>
+                  </div>
+                  <span className="bot-station-arrow">{botActive ? '✕' : '➔'}</span>
+                </button>
+
+                {/* Progressive Hint Ladders & Pills */}
+                <div className="bot-station-ladder">
+                  <div className="bot-hints-pill-bar">
+                    {[1, 2, 3, 4].map((step) => {
+                      const isUnlocked = revealedHints.some((h) => h.index === step);
+                      return (
+                        <div
+                          key={`hint-step-${step}`}
+                          className={`bot-hint-pill ${isUnlocked ? 'bot-hint-pill--unlocked' : ''}`}
+                        >
+                          HINT {step} {isUnlocked ? '✓' : '🔒'}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {revealedHints.length > 0 ? (
+                    <div style={{ marginTop: '4px' }}>
+                      {revealedHints.map((h) => (
+                        <div key={`hist-hint-${h.index}`} style={{ marginBottom: '6px' }}>
+                          <span className="step-badge" style={{ marginRight: '8px' }}>Hint {h.index}</span>
+                          <span className="schematic-text" style={{ fontSize: '12.5px' }}>{h.text}</span>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    revealedHints.map((h) => (
-                      <div key={h.index} style={{ marginBottom: '6px' }}>
-                        <span className="step-badge" style={{ marginRight: '8px' }}>Hint {h.index} of 4</span>
-                        <span className="schematic-text" style={{ fontSize: '12.5px' }}>{h.text}</span>
-                      </div>
-                    ))
+                    <p className="schematic-text" style={{ fontSize: '12px', margin: '4px 0 0' }}>
+                      {hasRun
+                        ? (hasFailedTests
+                            ? 'Error detected. Press the button above to float the bot directly to the error line.'
+                            : 'All tests passed. You can still inspect any line with the assistant.')
+                        : 'Run code in the sandbox to calibrate test results, or position your cursor and press the button for hints.'}
+                    </p>
                   )}
 
-                  {remainingHints > 0 && revealedHints.length < 4 ? (
+                  {remainingHints > 0 && revealedHints.length < 4 && hasRun && submissionId && (
                     <button
                       type="button"
                       className="secondary-btn hint-btn"
                       style={{ alignSelf: 'flex-start', padding: '6px 14px', fontSize: '12px', marginTop: '6px' }}
-                      disabled={!hasRun || !submissionId || isFetchingHint}
-                      onClick={handleGetHint}
+                      disabled={isFetchingHint}
+                      onClick={() => {
+                        handleGetHint();
+                        handleDeployBot('hint');
+                      }}
                     >
-                      {isFetchingHint ? 'Fetching hint…' : `Ask bot for hint (${remainingHints} remaining)`}
+                      {isFetchingHint ? 'Fetching hint…' : `Ask bot for next hint (${remainingHints} remaining)`}
                     </button>
-                  ) : revealedHints.length >= 4 ? (
-                    <p className="schematic-text" style={{ fontSize: '12px', fontWeight: 600 }}>
-                      All 4 hints unlocked. Analyze the hints and submit a revised solution.
-                    </p>
-                  ) : null}
+                  )}
                 </div>
               </div>
             </article>
@@ -306,6 +550,28 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                 <div className="schematic-editor-actions">
                   <button
                     type="button"
+                    className={`schematic-bot-quick-btn ${botActive ? 'schematic-bot-quick-btn--active' : ''} ${hasFailedTests ? 'schematic-bot-quick-btn--error' : ''}`}
+                    onClick={() => {
+                      if (botActive) {
+                        setBotActive(false);
+                      } else {
+                        handleDeployBot();
+                      }
+                    }}
+                    title={botActive ? "Dock bot back" : (hasFailedTests ? `Hover bot to error line ${suspectErrorLine}` : `Hover bot to line ${activeLine}`)}
+                  >
+                    <span className="bot-quick-emoji">🤖</span>
+                    <span>
+                      {botActive
+                        ? `DISMISS (LN ${targetLine})`
+                        : hasFailedTests
+                        ? `INSPECT ERROR (LN ${suspectErrorLine})`
+                        : `ASK BOT (LN ${activeLine})`}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
                     className="primary-energy-btn schematic-run-btn"
                     onClick={handleRun}
                     disabled={isRunning}
@@ -316,21 +582,157 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                 </div>
               </div>
 
-              <textarea
-                className="code-textarea"
-                style={{ minHeight: '280px', height: '300px', borderRadius: 0, border: 'none' }}
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                aria-label="Python code editor"
-                spellCheck={false}
-              />
+              <div className="schematic-editor-body-wrapper">
+                {/* Line numbers gutter */}
+                <div className="schematic-gutter" ref={gutterRef}>
+                  {codeLines.map((_, i) => {
+                    const lineNum = i + 1;
+                    const isTarget = botActive && targetLine === lineNum;
+                    const isCursor = activeLine === lineNum;
+                    return (
+                      <div
+                        key={`gutter-${lineNum}`}
+                        className={`schematic-gutter-line ${isTarget ? 'schematic-gutter-line--active' : ''} ${isCursor ? 'schematic-gutter-line--cursor' : ''}`}
+                      >
+                        {lineNum}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Editor surface with line highlight beam & hovering bot */}
+                <div className="schematic-editor-surface">
+                  {/* Active/Target line highlight beam */}
+                  {botActive && targetLine && (
+                    <div
+                      className={`editor-line-highlight ${botMode === 'error' ? 'editor-line-highlight--error' : 'editor-line-highlight--hint'}`}
+                      style={{
+                        top: `${(targetLine - 1) * 24 + 14 - scrollTop}px`
+                      }}
+                    />
+                  )}
+
+                  {/* Code Textarea */}
+                  <textarea
+                    ref={textareaRef}
+                    className="code-textarea"
+                    style={{ minHeight: '320px', height: '340px', borderRadius: 0, border: 'none' }}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    onClick={handleCursorChange}
+                    onKeyUp={handleCursorChange}
+                    onSelect={handleCursorChange}
+                    onScroll={handleScroll}
+                    aria-label="Python code editor"
+                    spellCheck={false}
+                  />
+
+                  {/* Floating Bot & Pop-up Speech Bubble */}
+                  {botActive && targetLine && (
+                    <div
+                      className={`editor-floating-bot ${botMode === 'error' ? 'editor-floating-bot--error' : 'editor-floating-bot--hint'}`}
+                      style={{
+                        top: `${Math.max(10, (targetLine - 1) * 24 + 14 - scrollTop)}px`
+                      }}
+                    >
+                      <div
+                        className="floating-bot-avatar"
+                        onClick={() => setBotActive(false)}
+                        title="Click to dismiss bot"
+                      >
+                        <span className="floating-bot-emoji">🤖</span>
+                        <span className="floating-bot-pulse" />
+                      </div>
+
+                      <div className="bot-speech-bubble" role="dialog" aria-label="Bot diagnostic speech bubble">
+                        <div className="bot-speech-bubble-arrow" />
+
+                        <div className="bot-speech-bubble-header">
+                          <span className="bot-bubble-tag">
+                            {botMode === 'error' ? `⚠ BOT DIAGNOSTIC // LINE ${targetLine}` : `💡 BOT HINT // LINE ${targetLine}`}
+                          </span>
+                          <button
+                            type="button"
+                            className="bot-bubble-close-btn"
+                            onClick={() => setBotActive(false)}
+                            aria-label="Close speech bubble"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="bot-speech-bubble-content">
+                          {botMode === 'error' ? (
+                            <>
+                              <p className="bot-speech-intro">There is something wrong here...</p>
+                              <p className="bot-speech-detail">{botDiagnostic.detail}</p>
+                              {botDiagnostic.lineSnippet && (
+                                <div className="bot-code-snippet">
+                                  <code>LN {targetLine}: {botDiagnostic.lineSnippet}</code>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <p className="bot-speech-intro">
+                                {latestHint ? `💡 Hint ${latestHint.index} of 4:` : '💡 Code Inspection Tip:'}
+                              </p>
+                              <p className="bot-speech-detail">
+                                {latestHint
+                                  ? latestHint.text
+                                  : (hasRun
+                                      ? 'Click unlock below to generate diagnostic hints for this challenge.'
+                                      : 'Examine this line carefully. Run tests to calibrate progressive hints.')}
+                              </p>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="bot-speech-bubble-actions">
+                          {botMode === 'hint' && remainingHints > 0 && revealedHints.length < 4 && hasRun && submissionId && (
+                            <button
+                              type="button"
+                              className="secondary-btn bot-bubble-btn"
+                              onClick={handleGetHint}
+                              disabled={isFetchingHint}
+                            >
+                              {isFetchingHint ? 'Fetching hint…' : `Next Hint (${remainingHints} left)`}
+                            </button>
+                          )}
+                          {botMode === 'error' && (
+                            <button
+                              type="button"
+                              className="secondary-btn bot-bubble-btn"
+                              onClick={() => {
+                                setBotMode('hint');
+                                if (revealedHints.length === 0 && submissionId) {
+                                  handleGetHint();
+                                }
+                              }}
+                            >
+                              💡 Give me a hint
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="secondary-btn bot-bubble-btn bot-bubble-btn--dismiss"
+                            onClick={() => setBotActive(false)}
+                          >
+                            Got it
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div className="schematic-editor-footer">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span className="chip-dot" aria-hidden="true">●</span>
                   <span>[ STATUS: {sandboxStatus.toUpperCase()} ]</span>
                 </div>
-                <span>LN {code.split('\n').length}, COL 1 · UTF-8</span>
+                <span>LN {activeLine} OF {lineCount} · UTF-8</span>
               </div>
             </div>
 
