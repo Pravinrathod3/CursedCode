@@ -251,11 +251,26 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
   };
 
   const handleGetHint = async () => {
-    if (!submissionId || isFetchingHint) return;
+    if (isFetchingHint) return;
     setIsFetchingHint(true);
 
     try {
-      const res = await getHint(submissionId);
+      let currentSubId = submissionId;
+      if (!currentSubId) {
+        setSandboxStatus('Evaluating code for hints…');
+        const submitRes = await submitCode(learnerName, challenge.id, code);
+        currentSubId = submitRes.submission_id;
+        setSubmissionId(currentSubId);
+        setVisibleResults(submitRes.visible || []);
+        setHiddenResults(submitRes.hidden || []);
+        setExplanation(submitRes.explanation || '');
+        setMistakeTags(submitRes.mistake_tags || []);
+        setLimitHit(submitRes.limit || null);
+        setHasRun(true);
+        setSandboxStatus('Code evaluated');
+      }
+
+      const res = await getHint(currentSubId);
       setRevealedHints((prev) => {
         if (prev.some((h) => h.index === res.hint_index)) return prev;
         return [...prev, { index: res.hint_index, text: res.hint, code_patch: res.code_patch }];
@@ -268,8 +283,9 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
       } else {
         setRemainingHints((prev) => Math.max(0, prev - 1));
       }
-    } catch {
-      // Ignore or maintain state
+    } catch (err) {
+      console.error('Failed to get hint:', err);
+      setSandboxStatus('Could not fetch hint. Please verify connection and try again.');
     } finally {
       setIsFetchingHint(false);
     }
@@ -324,7 +340,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
     } else {
       target = activeLine || (codeLines.length > 1 ? 2 : 1);
       // Automatically unlock first hint if available and none unlocked yet
-      if (revealedHints.length === 0 && submissionId && !isFetchingHint) {
+      if (revealedHints.length === 0 && !isFetchingHint) {
         handleGetHint();
       }
     }
@@ -571,7 +587,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                     </p>
                   )}
 
-                  {remainingHints > 0 && revealedHints.length < 4 && hasRun && submissionId && (
+                  {remainingHints > 0 && revealedHints.length < 4 && (
                     <button
                       type="button"
                       className="secondary-btn hint-btn"
@@ -774,7 +790,7 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                         </div>
 
                         <div className="bot-speech-bubble-actions">
-                          {botMode === 'hint' && remainingHints > 0 && revealedHints.length < 4 && hasRun && submissionId && (
+                          {botMode === 'hint' && remainingHints > 0 && revealedHints.length < 4 && (
                             <button
                               type="button"
                               className="secondary-btn bot-bubble-btn"
@@ -784,18 +800,17 @@ export default function WorkspacePage({ challengeId, onNavigate, learnerName }) 
                               {isFetchingHint ? 'Fetching hint…' : `Next Hint (${remainingHints} left)`}
                             </button>
                           )}
-                          {botMode === 'error' && (
+                          {botMode === 'error' && remainingHints > 0 && (
                             <button
                               type="button"
                               className="secondary-btn bot-bubble-btn"
                               onClick={() => {
                                 setBotMode('hint');
-                                if (revealedHints.length === 0 && submissionId) {
-                                  handleGetHint();
-                                }
+                                handleGetHint();
                               }}
+                              disabled={isFetchingHint}
                             >
-                              💡 Give me a hint
+                              {isFetchingHint ? 'Fetching hint…' : '💡 Give me a hint'}
                             </button>
                           )}
                           <button

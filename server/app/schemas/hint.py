@@ -11,6 +11,7 @@ class CodePatch(BaseModel):
 
 class HintRequest(BaseModel):
     submission_id: str = Field(..., min_length=1, max_length=128)
+    level: int | None = Field(default=None, ge=1, le=4)
 
 
 class HintResponse(BaseModel):
